@@ -1,0 +1,8 @@
+{
+  "query": "benchmark query for RAG pipeline",
+  "knowledgeBaseIds": [1],
+  "rewriteEnabled": false,
+  "candidateTopK": 10,
+  "topK": 5,
+  "rerank": false
+}

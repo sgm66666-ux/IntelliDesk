@@ -1,0 +1,54 @@
+# IntelliDesk Phase 7 Wave 5 — E2E overlay (deterministic provider stub).
+#
+# Used ONLY for real-browser Playwright E2E and live SSE verification. It is NOT
+# part of the production stack. It adds a `provider-stub` container that serves
+# deterministic OpenAI-compatible /v1/chat/completions (streaming + RAG citation +
+# Agent knowledge_base_list tool-call fixture) and /v1/embeddings, then points the
+# containerized backend's canonical provider env vars at it over the Docker network.
+#
+# Run with:
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml down
+#
+# The deterministic stub is E2E infrastructure only. The production backend has NO
+# query special-cases, filename special-cases, or hidden debug endpoints.
+
+services:
+  # Deterministic provider fixture (http://provider-stub:18080). Never used in prod.
+  provider-stub:
+    build:
+      context: ./provider-stub
+      dockerfile: Dockerfile
+    container_name: intellidesk-provider-stub
+    expose:
+      - "18080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:18080/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Override ONLY the provider env vars; everything else (ports, volumes, health,
+  # DB/Redis/RabbitMQ/MinIO/ES) comes from the base docker-compose.yml untouched.
+  backend:
+    depends_on:
+      provider-stub:
+        condition: service_healthy
+    environment:
+      # Chat/LLM provider -> in-network stub (RAG/Agent deterministic fixtures).
+      # ChatLlmProperties uses prefix `intellidesk.chat`, so the binding is the OS env
+      # var INTELLIDESK_CHAT_* (it also overrides the application.yml ${CHAT_BASE_URL}
+      # placeholder). The e2e overlay MUST override INTELLIDESK_CHAT_* here, otherwise
+      # the backend keeps the .env INTELLIDESK_CHAT_BASE_URL dead-end and RAG/Agent fail.
+      INTELLIDESK_CHAT_BASE_URL: http://provider-stub:18080
+      INTELLIDESK_CHAT_API_KEY: test-chat-key
+      INTELLIDESK_CHAT_MODEL: test-model
+      # Embeddings -> in-network stub (deterministic)
+      EMBEDDING_BASE_URL: http://provider-stub:18080
+      EMBEDDING_API_KEY: test-key
+      EMBEDDING_MODEL: test-model
+      # The stub does not serve a rerank endpoint; disable rerank for E2E determinism.
+      RERANK_ENABLED: "false"
+      # Local HTTP demo via Nginx on :80. Secure=false so the HttpOnly refresh
+      # cookie actually round-trips (no TLS in the local demo entrypoint).
+      APP_AUTH_COOKIE_SECURE: "false"

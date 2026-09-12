@@ -1,0 +1,222 @@
+# IntelliDesk Phase 7 Wave 5 — production-style deployment.
+#
+# Topology:
+#   Browser -> :80 (web/Nginx)
+#       /         -> Vue static dist (built into the image)
+#       /api/*    -> proxy_pass http://backend:8080   (SSE buffering disabled)
+#   backend:8080  -> Docker-internal ONLY (expose, NO host port binding)
+#   prometheus    -> backend:8080/actuator/prometheus (internal scrape)
+#   grafana       -> prometheus:9090
+#
+# Secrets come from <repo>/.env (see .env.example). Never hardcoded in this file.
+
+services:
+  # ---------- Infrastructure (existing behaviors preserved) ----------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: intellidesk-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-intellidesk}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: intellidesk-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    # Only pass --requirepass when REDIS_PASSWORD is non-empty ($$ = runtime shell var).
+    command: ["sh", "-c", "if [ -z \"$$REDIS_PASSWORD\" ]; then exec redis-server; else exec redis-server --requirepass \"$$REDIS_PASSWORD\"; fi"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -z \"$$REDIS_PASSWORD\" ]; then redis-cli ping | grep -q PONG; else redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG; fi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: intellidesk-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    container_name: intellidesk-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  elasticsearch:
+    build:
+      context: ./elasticsearch
+      dockerfile: Dockerfile
+    container_name: intellidesk-elasticsearch
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx1024m"
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ---------- Backend (Spring Boot, Docker-network only) ----------
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: intellidesk-backend
+    env_file:
+      - ../.env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      # Official Spring Boot forwarded-headers strategy: resolve real client IP from the
+      # trusted Nginx-set `Forwarded`/`X-Forwarded-For` headers (Nginx overwrites them).
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      # Local HTTP demo via Nginx on :80 (no TLS). Keep Secure=false so the HttpOnly
+      # refresh cookie actually round-trips; set true only when terminating HTTPS.
+      APP_AUTH_COOKIE_SECURE: "false"
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      MINIO_ENDPOINT: http://minio:9000
+      ELASTICSEARCH_HOST: elasticsearch
+      # Controlled performance runs may explicitly set this false. The normal
+      # deployment default remains true and is restored after benchmarking.
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      # Explicit provider passthroughs let controlled evaluation select real
+      # host services without baking evaluation endpoints into the image.
+      INTELLIDESK_CHAT_BASE_URL: ${INTELLIDESK_CHAT_BASE_URL:-https://api.openai.com}
+      INTELLIDESK_CHAT_API_KEY: ${INTELLIDESK_CHAT_API_KEY:-}
+      INTELLIDESK_CHAT_MODEL: ${INTELLIDESK_CHAT_MODEL:-gpt-4o-mini}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://api.openai.com}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      RERANK_ENABLED: ${RERANK_ENABLED:-false}
+      RERANK_BASE_URL: ${RERANK_BASE_URL:-}
+      RERANK_API_KEY: ${RERANK_API_KEY:-}
+      RERANK_MODEL: ${RERANK_MODEL:-gte-rerank}
+    expose:
+      - "8080"
+    # NO `ports:` — backend must NOT be reachable from the host (WAVE5_BACKEND_PORT_NOT_EXPOSED).
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ---------- Web (Nginx + Vue static, single image) ----------
+  web:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    container_name: intellidesk-web
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Observability ----------
+  prometheus:
+    image: prom/prometheus:v2.54.0
+    container_name: intellidesk-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: intellidesk-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
+  es_data:
+  prometheus_data:
+  grafana_data:

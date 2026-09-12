@@ -1,0 +1,1 @@
+{"model":"BAAI/bge-reranker-v2-m3","input":{"query":"报销流程","documents":["员工提交报销单。","财务审核发票。"]}}

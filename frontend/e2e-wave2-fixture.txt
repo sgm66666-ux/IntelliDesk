@@ -1,0 +1,3 @@
+IntelliDesk Wave 2 deterministic UTF-8 text fixture.
+Knowledge base ingestion must persist this sentence in a chunk.
+中文内容用于验证 UTF-8 文本解析。

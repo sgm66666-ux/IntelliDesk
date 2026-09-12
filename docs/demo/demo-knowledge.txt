@@ -1,0 +1,14 @@
+IntelliDesk portfolio demo policy
+
+Travel expense policy:
+- Beijing daily allowance: 600 CNY.
+- Shanghai daily allowance: 650 CNY.
+- Tokyo daily allowance: 12,000 JPY.
+
+Security policy:
+- API keys are located by a unique prefix and the secret is verified with BCrypt.
+- Full API keys are shown only once at creation and are never stored in plaintext.
+
+Reliability policy:
+- Document and retrieval workers use guarded status transitions, leases, generations, and fence tokens.
+- A stale worker cannot overwrite the current indexing generation.

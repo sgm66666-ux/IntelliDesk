@@ -1,0 +1,1 @@
+This is a deterministic benchmark fixture document for IntelliDesk RAG pipeline testing.

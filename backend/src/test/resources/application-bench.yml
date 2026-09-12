@@ -1,0 +1,74 @@
+# Phase 8 Wave 2 — B-class end-to-end benchmark profile.
+# This profile is used only by evaluation-only test harnesses under
+# backend/src/test/java/com/intellidesk/benchmark/.
+# It disables background schedulers and rate-limiting so that measured
+# latencies reflect the system pipeline under test.
+
+spring:
+  config:
+    activate:
+      on-profile: bench
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/intellidesk_bench
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:change_me}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: true
+        concurrency: 1
+        max-concurrency: 1
+        prefetch: 1
+
+intellidesk:
+  embedding:
+    api-key: ${EMBEDDING_API_KEY:ollama-placeholder}
+    base-url: ${EMBEDDING_BASE_URL:http://127.0.0.1:11434}
+    model: ${EMBEDDING_MODEL:qwen3-embedding:8b}
+    dimension: 1536
+    batch-size: 10
+  rate-limit:
+    enabled: false
+  retrieval:
+    es-index-name: ${RETRIEVAL_BENCH_ES_INDEX_NAME:intellidesk-benchmark-retrieval-v1}
+    hnsw-ef-search: 100
+    rerank:
+      enabled: true
+      base-url: ${RERANK_BASE_URL:http://127.0.0.1:18182}
+      api-key: ${RERANK_API_KEY:local-placeholder}
+      model: ${RERANK_MODEL:BAAI/bge-reranker-v2-m3}
+      timeout-seconds: 30
+    retrieval-worker-enabled: true
+    dispatcher-interval-ms: 1000
+    recovery-interval-ms: 5000
+    cleanup-interval-ms: 10000
+    processing-lease-seconds: 300
+    retry-delay-seconds: 1
+    max-attempts: 3
+  document-ingestion:
+    dispatcher-interval-seconds: 1
+    retry-delay-seconds: 1
+    max-attempts: 3
+    processing-lease-minutes: 5
+    upload-cleanup-grace-seconds: 10
+    upload-abandoned-timeout-seconds: 10
+    recovery-scheduler-enabled: false
+
+logging:
+  level:
+    com.intellidesk: INFO
+    org.springframework.amqp: WARN
+    org.testcontainers: INFO

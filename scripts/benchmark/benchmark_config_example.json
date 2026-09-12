@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "scenario": "rag-pipeline",
+  "target": "http://127.0.0.1:80/api/chat",
+  "duration": "30s",
+  "vus": 10,
+  "thresholds": {
+    "p95": 500,
+    "p99": 1000,
+    "error_rate": 0.01
+  },
+  "metadata": {
+    "description": "Example benchmark-only configuration for Phase 8 Wave 2",
+    "provider_mode": "e2e-stub",
+    "expected_runs": 3,
+    "note": "This is a template only. Formal benchmark must use a frozen config artifact."
+  }
+}

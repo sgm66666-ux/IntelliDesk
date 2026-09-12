@@ -1,0 +1,225 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+# Phase 7 Wave 5 — observability (auto metrics only, internal via Docker network).
+# Prometheus scrapes /actuator/prometheus directly on the Docker network; Nginx does
+# NOT expose /actuator/* to the browser. Trusted-proxy handling is done through the
+# official Spring Boot forwarded-header strategy (configured via env in the container)
+# so the login rate-limit sees the real client IP without hand-parsing X-Forwarded-For.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: intellidesk
+    distribution:
+      percentiles-histogram:
+        # Emit http_server_requests_seconds_bucket so the Grafana p95 latency panel
+        # (histogram_quantile) has real data. Auto metric only; no custom meters.
+        http.server.requests: true
+
+spring:
+  application:
+    name: intellidesk
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  ai:
+    openai:
+      api-key: ${SPRING_AI_OPENAI_API_KEY:placeholder}
+    model:
+      chat: none
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:intellidesk}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:change_me}
+    driver-class-name: org.postgresql.Driver
+
+  elasticsearch:
+    # Spring Data / Actuator ES client (used by ElasticsearchRestClientHealthIndicator).
+    # Must match intellidesk.elasticsearch.host:port so health reflects the real node.
+    uris: http://${ELASTICSEARCH_HOST:localhost}:${ELASTICSEARCH_PORT:9200}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:20MB}
+      max-request-size: ${MAX_REQUEST_SIZE:25MB}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+        concurrency: ${RABBITMQ_CONCURRENCY:1}
+        max-concurrency: ${RABBITMQ_MAX_CONCURRENCY:1}
+        prefetch: ${RABBITMQ_PREFETCH:1}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+jwt:
+  secret: ${JWT_SECRET:}
+  access-token-expiration: ${JWT_EXPIRATION_MS:3600000}
+  refresh-token-expiration: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+
+app:
+  auth:
+    cookie:
+      secure: ${APP_AUTH_COOKIE_SECURE:true}
+
+intellidesk:
+  api-key:
+    prefix-length: ${API_KEY_PREFIX_LENGTH:8}
+    secret-bytes: ${API_KEY_SECRET_BYTES:32}
+    max-prefix-retries: ${API_KEY_MAX_PREFIX_RETRIES:5}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    namespace: ${RATE_LIMIT_NAMESPACE:intellidesk:dev}
+    window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+    agent: ${RATE_LIMIT_AGENT:10}
+    chat: ${RATE_LIMIT_CHAT:30}
+    retrieval: ${RATE_LIMIT_RETRIEVAL:60}
+    upload: ${RATE_LIMIT_UPLOAD:20}
+    auth: ${RATE_LIMIT_AUTH:10}
+  distributed-lock:
+    lease-ms: ${DISTRIBUTED_LOCK_LEASE_MS:30000}
+    namespace: ${DISTRIBUTED_LOCK_NAMESPACE:intellidesk:dev}
+  chat:
+    base-url: ${CHAT_BASE_URL:https://api.openai.com}
+    api-key: ${CHAT_API_KEY:}
+    model: ${CHAT_MODEL:gpt-4o-mini}
+    temperature: ${CHAT_TEMPERATURE:0.1}
+    max-tokens: ${CHAT_MAX_TOKENS:2048}
+    timeout-seconds: ${CHAT_TIMEOUT_SECONDS:60}
+    rewrite:
+      enabled: ${REWRITE_ENABLED:true}
+      history-messages: ${REWRITE_HISTORY_MESSAGES:4}
+      max-length: ${REWRITE_MAX_LENGTH:500}
+  agent:
+    tool-timeout-seconds: ${AGENT_TOOL_TIMEOUT_SECONDS:30}
+    tool-max-result-chars: ${AGENT_TOOL_MAX_RESULT_CHARS:16384}
+    tool-core-pool-size: ${AGENT_TOOL_CORE_POOL_SIZE:2}
+    tool-max-pool-size: ${AGENT_TOOL_MAX_POOL_SIZE:4}
+    tool-queue-capacity: ${AGENT_TOOL_QUEUE_CAPACITY:16}
+    loop:
+      max-steps: ${AGENT_MAX_STEPS:10}
+      timeout-seconds: ${AGENT_TIMEOUT_SECONDS:120}
+      system-prompt: |
+        You are an intelligent enterprise assistant with access to tools.
+        Use the tools to retrieve information from the knowledge base when needed.
+        Provide accurate answers based on the tool results.
+  embedding:
+    api-key: ${EMBEDDING_API_KEY:}
+    base-url: ${EMBEDDING_BASE_URL:https://api.openai.com}
+    model: ${EMBEDDING_MODEL:}
+    dimension: ${EMBEDDING_DIMENSION:1536}
+    batch-size: ${EMBEDDING_BATCH_SIZE:20}
+  retrieval:
+    top-k: ${RETRIEVAL_TOP_K:10}
+    candidate-top-k: ${RETRIEVAL_CANDIDATE_TOP_K:50}
+    hnsw-ef-search: ${RETRIEVAL_HNSW_EF_SEARCH:100}
+    retrieval-worker-enabled: ${RETRIEVAL_WORKER_ENABLED:true}
+    dispatcher-interval-ms: ${RETRIEVAL_DISPATCHER_INTERVAL_MS:5000}
+    recovery-interval-ms: ${RETRIEVAL_RECOVERY_INTERVAL_MS:30000}
+    cleanup-interval-ms: ${RETRIEVAL_CLEANUP_INTERVAL_MS:60000}
+    processing-lease-seconds: ${RETRIEVAL_PROCESSING_LEASE_SECONDS:300}
+    retry-delay-seconds: ${RETRIEVAL_RETRY_DELAY_SECONDS:30}
+    max-attempts: ${RETRIEVAL_MAX_ATTEMPTS:3}
+    es-index-name: ${RETRIEVAL_ES_INDEX_NAME:intellidesk-chunks-v1}
+    rerank:
+      enabled: ${RERANK_ENABLED:false}
+      base-url: ${RERANK_BASE_URL:}
+      api-key: ${RERANK_API_KEY:}
+      model: ${RERANK_MODEL:gte-rerank}
+      timeout-seconds: ${RERANK_TIMEOUT_SECONDS:15}
+  elasticsearch:
+    host: ${ELASTICSEARCH_HOST:localhost}
+    port: ${ELASTICSEARCH_PORT:9200}
+    username: ${ELASTICSEARCH_USERNAME:}
+    password: ${ELASTICSEARCH_PASSWORD:}
+    connection-timeout-seconds: ${ELASTICSEARCH_CONNECTION_TIMEOUT_SECONDS:5}
+    read-timeout-seconds: ${ELASTICSEARCH_READ_TIMEOUT_SECONDS:30}
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:intellidesk-documents}
+    connect-timeout-seconds: ${MINIO_CONNECT_TIMEOUT_SECONDS:5}
+    read-timeout-seconds: ${MINIO_READ_TIMEOUT_SECONDS:30}
+    write-timeout-seconds: ${MINIO_WRITE_TIMEOUT_SECONDS:30}
+  document-ingestion:
+    max-file-size-bytes: ${MAX_FILE_SIZE_BYTES:20971520}
+    max-pdf-pages: ${MAX_PDF_PAGES:500}
+    max-extracted-characters: ${MAX_EXTRACTED_CHARACTERS:5000000}
+    processing-lease-minutes: ${PROCESSING_LEASE_MINUTES:10}
+    dispatch-stale-timeout-seconds: ${DISPATCH_STALE_TIMEOUT_SECONDS:60}
+    dispatcher-interval-seconds: ${DISPATCHER_INTERVAL_SECONDS:10}
+    retry-delay-seconds: ${RETRY_DELAY_SECONDS:30}
+    max-attempts: ${MAX_ATTEMPTS:3}
+    upload-cleanup-grace-seconds: ${UPLOAD_CLEANUP_GRACE_SECONDS:120}
+    upload-abandoned-timeout-seconds: ${UPLOAD_ABANDONED_TIMEOUT_SECONDS:300}
+    recovery-scheduler-enabled: ${RECOVERY_SCHEDULER_ENABLED:true}
+
+logging:
+  level:
+    com.intellidesk: DEBUG
+    org.springframework.security: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+app:
+  auth:
+    cookie:
+      secure: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+app:
+  auth:
+    cookie:
+      secure: true

@@ -1,0 +1,14 @@
+# IntelliDesk Phase 7 Wave 5 — Prometheus scrape config.
+# Backend is reached on the Docker-internal network only (backend:8080), directly
+# scraping /actuator/prometheus. NOT via Nginx, NOT via localhost.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'intellidesk-backend'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['backend:8080']
+        labels:
+          application: 'intellidesk'

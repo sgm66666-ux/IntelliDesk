@@ -1,0 +1,114 @@
+spring:
+  ai:
+    openai:
+      api-key: test-key
+      base-url: https://api.openai.com
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  datasource:
+    url: jdbc:h2:mem:intellidesk_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  flyway:
+    enabled: false
+
+  sql:
+    init:
+      mode: always
+      continue-on-error: true
+      schema-locations: classpath:db/migration/V1__init_schema.sql
+      data-locations: classpath:db/testdata/V3_permission_seeds.sql
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        auto-startup: false
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+
+intellidesk:
+  chat:
+    base-url: https://api.openai.com
+    api-key: test-chat-key
+    model: gpt-4o-mini
+    temperature: 0.1
+    max-tokens: 2048
+    timeout-seconds: 60
+    rewrite:
+      enabled: true
+      history-messages: 4
+      max-length: 500
+    context:
+      token-budget: 4096
+      candidate-top-k: 30
+      top-k: 8
+      citation-content-max-chars: 1000
+    memory:
+      max-messages: 10
+  embedding:
+    api-key: test-key
+    base-url: https://api.openai.com
+    model: text-embedding-3-small
+    dimension: 1536
+    batch-size: 5
+  retrieval:
+    top-k: 10
+    candidate-top-k: 20
+    hnsw-ef-search: 40
+    retrieval-worker-enabled: false
+  minio:
+    endpoint: http://localhost:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket: intellidesk-documents-test
+    connect-timeout-seconds: 5
+    read-timeout-seconds: 5
+    write-timeout-seconds: 5
+  document-ingestion:
+    max-file-size-bytes: 20971520
+    max-pdf-pages: 500
+    max-extracted-characters: 5000000
+    processing-lease-minutes: 10
+    dispatch-stale-timeout-seconds: 60
+    dispatcher-interval-seconds: 10
+    retry-delay-seconds: 30
+    max-attempts: 3
+    upload-cleanup-grace-seconds: 120
+    upload-abandoned-timeout-seconds: 300
+    recovery-scheduler-enabled: false
+  api-key:
+    prefix-length: 8
+    secret-bytes: 32
+    max-prefix-retries: 5
+  rate-limit:
+    enabled: false
+    namespace: intellidesk:test
+    window-seconds: 60
+    agent: 10
+    chat: 30
+    retrieval: 60
+    upload: 20
+    auth: 10
+  distributed-lock:
+    lease-ms: 30000
+    namespace: intellidesk:test
+
+jwt:
+  secret: test-secret-key-for-phase1-testing-only-at-least-32-bytes
+
+app:
+  auth:
+    cookie:
+      secure: false

@@ -1,0 +1,5 @@
+IntelliDesk 是一个企业知识库与 RAG 平台。
+
+它支持多种文档格式，包括 PDF、Markdown 与纯文本。
+
+本段文本用于验证解析器与分块策略：中文、英文 mixed，以及 emoji 🚀✅。

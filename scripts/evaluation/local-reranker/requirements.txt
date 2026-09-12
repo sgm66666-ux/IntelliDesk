@@ -1,0 +1,17 @@
+# Phase 8 Wave 1 — Local Real Reranker Gateway
+# Evaluation-only dependencies. NOT used in production runtime/Docker/frontend.
+#
+# Install:
+#   python -m pip install -r requirements.txt
+#
+# PyTorch CPU wheels are served from the PyTorch index; other packages from PyPI.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+flagembedding==1.2.11
+peft==0.20.0
+torch==2.11.0+cpu
+transformers==4.51.3
+numpy>=1.26.0,<2.0.0
+huggingface-hub>=0.25.0
+flask>=3.0.0

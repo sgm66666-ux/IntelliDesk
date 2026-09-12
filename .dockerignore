@@ -1,0 +1,14 @@
+# Repo-root .dockerignore — slims the build context for the `web` and `backend` images.
+**/.git
+**/node_modules
+**/target
+**/dist
+**/*.log
+.env
+.env.*
+!.env.example
+docs
+*.md
+.idea
+.vscode
+*.iml
