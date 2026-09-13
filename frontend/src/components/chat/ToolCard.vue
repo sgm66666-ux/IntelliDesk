@@ -37,11 +37,11 @@ const tagType = computed(() => {
 const statusLabel = computed(() => {
   switch (props.item.status) {
     case 'done':
-      return props.item.success ? 'Done' : 'Failed';
+      return props.item.success ? '已完成' : '失败';
     case 'error':
-      return 'Error';
+      return '失败';
     default:
-      return 'Running…';
+      return '调用中…';
   }
 });
 
@@ -49,21 +49,21 @@ const resultSummary = computed(() => {
   const item = props.item;
   if (item.status !== 'done') return '';
   const parts: string[] = [];
-  if (typeof item.resultCount === 'number') parts.push(`${item.resultCount} result${item.resultCount === 1 ? '' : 's'}`);
+  if (typeof item.resultCount === 'number') parts.push(`${item.resultCount} 条结果`);
   if (typeof item.durationMs === 'number') parts.push(`${item.durationMs}ms`);
-  if (parts.length === 0) return item.success ? 'Completed' : 'Failed';
+  if (parts.length === 0) return item.success ? '已完成' : '失败';
   return parts.join(' · ');
 });
 </script>
 
 <style scoped lang="scss">
 .tool-card {
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin: 6px 0;
+  border: 1px solid var(--id-border);
+  border-radius: 9px;
+  padding: 9px 11px;
+  margin: 8px 0;
   font-size: 13px;
-  background: #fff;
+  background: #fafbfc;
 
   &__header {
     display: flex;
@@ -71,9 +71,9 @@ const resultSummary = computed(() => {
     gap: 8px;
   }
 
-  &__spin { animation: spin 1s linear infinite; color: #409eff; }
-  &__ok { color: #67c23a; }
-  &__err { color: #f56c6c; }
+  &__spin { animation: spin 1s linear infinite; color: var(--id-accent); }
+  &__ok { color: var(--id-success); }
+  &__err { color: var(--id-danger); }
 
   &__name { font-weight: 600; }
 
@@ -81,7 +81,7 @@ const resultSummary = computed(() => {
 
   &__result {
     margin-top: 6px;
-    color: #606266;
+    color: var(--id-text-muted);
     white-space: pre-wrap;
     word-break: break-word;
   }

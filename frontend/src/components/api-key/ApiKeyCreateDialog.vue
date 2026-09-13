@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="secret ? 'API Key Created' : 'Create API Key'"
+    :title="secret ? 'API Key 已创建' : '创建 API Key'"
     width="520px"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
@@ -10,26 +10,26 @@
   >
     <template v-if="!secret">
       <el-form label-position="top" @submit.prevent>
-        <el-form-item label="Name" required>
+        <el-form-item label="名称" required>
           <el-input
             v-model="form.name"
-            placeholder="e.g. prod-integration"
+            placeholder="例如：prod-integration"
             maxlength="128"
             show-word-limit
             :data-testid="`${dataId}-name`"
           />
         </el-form-item>
-        <el-form-item label="Expires At (optional)">
+        <el-form-item label="过期时间（可选）">
           <el-date-picker
             v-model="form.expiresAt"
             type="datetime"
-            placeholder="No expiry"
+            placeholder="永不过期"
             style="width: 100%"
           />
         </el-form-item>
         <el-form-item label="Scope">
           <el-select v-model="form.scope" style="width: 100%" disabled>
-            <el-option label="Read-only" :value="'READ'" />
+            <el-option label="只读（READ）" :value="'READ'" />
           </el-select>
         </el-form-item>
         <ErrorMessage
@@ -46,7 +46,7 @@
         type="warning"
         :closable="false"
         show-icon
-        title="This API key is shown only once. Copy it now."
+        title="此 API Key 仅显示一次，请立即复制并妥善保存。"
       />
       <div class="ak-dialog__secret">
         <code class="ak-dialog__code">{{ secret.fullKey }}</code>
@@ -56,14 +56,14 @@
           :data-testid="`${dataId}-copy`"
           @click="copySecret"
         >
-          {{ copied ? 'Copied' : 'Copy' }}
+          {{ copied ? '已复制' : '复制' }}
         </el-button>
       </div>
     </template>
 
     <template #footer>
       <el-button v-if="!secret" class="ak-dialog__cancel" @click="cancel">
-        Cancel
+        取消
       </el-button>
       <el-button
         v-if="!secret"
@@ -73,9 +73,9 @@
         class="ak-dialog__submit"
         @click="submit"
       >
-        Create
+        创建
       </el-button>
-      <el-button v-else class="ak-dialog__done" @click="cancel">Done</el-button>
+      <el-button v-else class="ak-dialog__done" @click="cancel">完成</el-button>
     </template>
   </el-dialog>
 </template>
@@ -143,9 +143,9 @@ async function copySecret() {
   try {
     await navigator.clipboard.writeText(value);
     copied.value = true;
-    ElMessage.success('Copied');
+    ElMessage.success('已复制');
   } catch {
-    ElMessage.error('Copy failed. Select the key and copy it manually.');
+    ElMessage.error('复制失败，请选中 Key 后手动复制。');
   }
 }
 </script>
@@ -156,18 +156,18 @@ async function copySecret() {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-top: 16px;
+    margin-top: 18px;
   }
   &__code {
     flex: 1;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
     word-break: break-all;
-    padding: 8px 10px;
-    background: #f5f7fa;
-    border: 1px solid #e4e7ed;
-    border-radius: 4px;
+    padding: 11px 12px;
+    background: #f7f8fa;
+    border: 1px solid var(--id-border);
+    border-radius: 8px;
     font-size: 12px;
-    color: #303133;
+    color: var(--id-text);
   }
 }
 </style>

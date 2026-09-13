@@ -3,31 +3,38 @@
     <div class="page-container">
       <div class="page-header">
         <div>
-          <h1>Knowledge Bases</h1>
-          <p>Manage document collections for this workspace.</p>
+          <h1>知识库</h1>
+          <p>管理用于 RAG 检索的文档集合与分块策略。</p>
         </div>
-        <el-button type="primary" @click="showCreate = true">Create knowledge base</el-button>
+        <el-button type="primary" @click="showCreate = true">创建知识库</el-button>
       </div>
 
       <div class="toolbar">
-        <el-input v-model="searchText" placeholder="Search knowledge bases" clearable @keyup.enter="search" @clear="search" />
-        <el-button @click="search">Search</el-button>
+        <el-input v-model="searchText" placeholder="搜索知识库名称" clearable @keyup.enter="search" @clear="search" />
+        <el-button @click="search">搜索</el-button>
       </div>
 
-      <LoadingSpinner v-if="store.listLoading" text="Loading knowledge bases..." />
+      <LoadingSpinner v-if="store.listLoading" text="正在加载知识库…" />
       <ErrorMessage v-else-if="store.listError" :message="store.listError.message" :retry="true" @retry="load" />
-      <EmptyState v-else-if="store.items.length === 0" description="No knowledge bases found" action-label="Create knowledge base" @action="showCreate = true" />
+      <EmptyState v-else-if="store.items.length === 0" description="未找到知识库" action-label="创建知识库" @action="showCreate = true" />
       <div v-else>
         <el-table :data="store.items" @row-click="openDetail">
-          <el-table-column prop="name" label="Name" min-width="220" />
-          <el-table-column prop="description" label="Description" min-width="280" />
-          <el-table-column label="Chunking" min-width="180">
-            <template #default="scope">{{ scope.row.chunkStrategy }} · {{ scope.row.chunkSize }}/{{ scope.row.chunkOverlap }}</template>
+          <el-table-column label="名称" min-width="220">
+            <template #default="scope"><strong class="kb-name">{{ scope.row.name }}</strong></template>
           </el-table-column>
-          <el-table-column label="Actions" width="180" fixed="right">
+          <el-table-column label="描述" min-width="280">
+            <template #default="scope"><span class="kb-description">{{ scope.row.description || '暂无描述' }}</span></template>
+          </el-table-column>
+          <el-table-column label="分块策略" min-width="200">
+            <template #default="scope"><span class="chunking-badge">{{ scope.row.chunkStrategy }} · {{ scope.row.chunkSize }}/{{ scope.row.chunkOverlap }}</span></template>
+          </el-table-column>
+          <el-table-column label="状态" width="100">
+            <template #default="scope"><el-tag size="small" type="success" effect="light">{{ commonStatusLabel(scope.row.status) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
-              <el-button text type="primary" @click.stop="openEdit(scope.row)">Edit</el-button>
-              <el-button text type="danger" @click.stop="confirmDelete(scope.row.id, scope.row.name)">Delete</el-button>
+              <el-button text type="primary" @click.stop="openEdit(scope.row)">编辑</el-button>
+              <el-button text type="danger" @click.stop="confirmDelete(scope.row.id, scope.row.name)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -43,14 +50,14 @@
 
       <KnowledgeBaseFormDialog
         v-model="showCreate"
-        title="Create Knowledge Base"
+        title="创建知识库"
         :loading="store.actionLoading"
         :submit-error="store.actionError?.message"
         @submit="create"
       />
       <KnowledgeBaseFormDialog
         v-model="showEdit"
-        title="Edit Knowledge Base"
+        title="编辑知识库"
         :initial-value="editing"
         :loading="store.actionLoading"
         :submit-error="store.actionError?.message"
@@ -71,6 +78,7 @@ import ErrorMessage from '@/components/common/ErrorMessage.vue';
 import KnowledgeBaseFormDialog from '@/components/KnowledgeBaseFormDialog.vue';
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase';
 import type { KnowledgeBase, KnowledgeBaseRequest } from '@/types/knowledgeBase';
+import { commonStatusLabel } from '@/lib/display';
 
 const route = useRoute();
 const router = useRouter();
@@ -128,8 +136,8 @@ async function update(value: KnowledgeBaseRequest) {
 
 async function confirmDelete(id: number, name: string) {
   try {
-    await ElMessageBox.confirm(`Delete "${name}"?`, 'Delete knowledge base', {
-      confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning',
+    await ElMessageBox.confirm(`确认删除知识库“${name}”吗？`, '删除知识库', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
     });
     await store.remove(workspaceId.value, id);
   } catch {}
@@ -140,14 +148,16 @@ watch(workspaceId, () => load());
 </script>
 
 <style scoped lang="scss">
-.page-header, .toolbar {
+.toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
-.page-header { margin-bottom: 24px; }
-.page-header p { margin: 4px 0 0; color: #606266; }
-.toolbar { max-width: 520px; margin-bottom: 16px; }
-.pagination { justify-content: flex-end; margin-top: 16px; }
+.toolbar { max-width: 560px; margin-bottom: 18px; }
+.pagination { justify-content: flex-end; margin-top: 18px; }
+.kb-name { color: var(--id-text); font-size: 14px; font-weight: 620; }
+.kb-description { color: var(--id-text-muted); }
+.chunking-badge { display: inline-flex; padding: 5px 9px; border-radius: 7px; background: #f2f4f7; color: #667085; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+@media (max-width: 640px) { .toolbar { align-items: stretch; } }
 </style>

@@ -8,14 +8,14 @@
   >
     <template #reference>
       <el-button :disabled="disabled" size="small">
-        KB scope ({{ selected.length }})<el-icon class="kb-selector__arrow"><ArrowDown /></el-icon>
+        知识库范围（{{ selected.length }}）<el-icon class="kb-selector__arrow"><ArrowDown /></el-icon>
       </el-button>
     </template>
 
     <div class="kb-selector">
-      <div v-if="loading" class="kb-selector__hint">Loading knowledge bases…</div>
+      <div v-if="loading" class="kb-selector__hint">正在加载知识库…</div>
       <div v-else-if="items.length === 0" class="kb-selector__hint">
-        No knowledge bases in this workspace. Create one to enable RAG chat.
+        此工作空间暂无知识库，创建后即可使用 RAG 对话。
       </div>
       <div v-else>
         <div
@@ -28,8 +28,8 @@
           <span class="kb-selector__name">{{ kb.name }}</span>
         </div>
         <div class="kb-selector__actions">
-          <el-button size="small" @click="selected = allIds">Select all</el-button>
-          <el-button size="small" @click="selected = []">Clear</el-button>
+          <el-button size="small" @click="selected = allIds">全选</el-button>
+          <el-button size="small" @click="selected = []">清空</el-button>
         </div>
       </div>
     </div>
@@ -73,14 +73,16 @@ defineExpose({ selected, visible });
 
 <style scoped lang="scss">
 .kb-selector {
-  &__hint { color: #909399; font-size: 13px; padding: 8px; }
+  &__hint { color: var(--id-text-muted); font-size: 13px; line-height: 1.6; padding: 8px; }
 
   &__item {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 4px;
+    padding: 8px 5px;
+    border-radius: 7px;
     cursor: pointer;
+    &:hover { background: #f6f7f9; }
   }
 
   &__name { font-size: 13px; }

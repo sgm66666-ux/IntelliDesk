@@ -3,16 +3,16 @@
     <div class="page-container">
       <div class="page-header">
         <div>
-          <el-button text @click="goBack">Back to knowledge base</el-button>
-          <h1>{{ store.currentDocument?.fileName || 'Document' }}</h1>
+          <el-button text @click="goBack">← 返回知识库</el-button>
+          <h1>{{ store.currentDocument?.fileName || '文档' }}</h1>
         </div>
         <div class="actions" v-if="store.currentDocument">
-          <el-button v-if="store.currentDocument.status === 'FAILED'" type="primary" :loading="store.actionLoading" @click="retry">Retry</el-button>
-          <el-button type="danger" plain :loading="store.actionLoading" @click="confirmDelete">Delete</el-button>
+          <el-button v-if="store.currentDocument.status === 'FAILED'" type="primary" :loading="store.actionLoading" @click="retry">重试</el-button>
+          <el-button type="danger" plain :loading="store.actionLoading" @click="confirmDelete">删除</el-button>
         </div>
       </div>
 
-      <LoadingSpinner v-if="store.detailLoading" text="Loading document..." />
+      <LoadingSpinner v-if="store.detailLoading" text="正在加载文档…" />
       <ErrorMessage v-else-if="store.detailError" :message="store.detailError.message" :retry="true" @retry="load" />
       <template v-else-if="store.currentDocument">
         <ErrorMessage
@@ -25,14 +25,14 @@
         <el-card shadow="never" class="metadata">
           <div class="status-line"><DocumentStatusBadge :status="store.currentDocument.status" /></div>
           <dl>
-            <dt>Content type</dt><dd>{{ store.currentDocument.contentType || '—' }}</dd>
-            <dt>File size</dt><dd>{{ formatSize(store.currentDocument.fileSize) }}</dd>
-            <dt>Created</dt><dd>{{ store.currentDocument.createdAt || '—' }}</dd>
-            <dt>Chunk strategy</dt><dd>{{ store.currentDocument.chunkStrategy || '—' }}</dd>
+            <div><dt>内容类型</dt><dd>{{ store.currentDocument.contentType || '—' }}</dd></div>
+            <div><dt>文件大小</dt><dd>{{ formatSize(store.currentDocument.fileSize) }}</dd></div>
+            <div><dt>创建时间</dt><dd>{{ store.currentDocument.createdAt || '—' }}</dd></div>
+            <div><dt>分块策略</dt><dd>{{ store.currentDocument.chunkStrategy || '—' }}</dd></div>
           </dl>
           <el-alert v-if="store.currentDocument.failureMessage" type="error" :title="store.currentDocument.failureMessage" :closable="false" show-icon />
           <el-collapse v-if="store.currentDocument.parserMetadata">
-            <el-collapse-item title="Parser metadata">
+            <el-collapse-item title="解析器元数据">
               <pre>{{ stringify(store.currentDocument.parserMetadata) }}</pre>
             </el-collapse-item>
           </el-collapse>
@@ -48,7 +48,7 @@
           @refresh="loadChunks"
           @page-change="loadChunks"
         />
-        <el-alert v-else type="info" title="Chunks are available after document parsing completes." :closable="false" />
+        <el-alert v-else type="info" title="文档解析完成后即可查看 Chunk。" :closable="false" />
       </template>
     </div>
   </MainLayout>
@@ -71,7 +71,7 @@ const store = useDocumentStore();
 const workspaceId = computed(() => Number(route.params.workspaceId));
 const knowledgeBaseId = computed(() => Number(route.params.knowledgeBaseId));
 const documentId = computed(() => Number(route.params.documentId));
-const chunkError = computed(() => store.chunksError?.code === 4008 ? 'Chunks are currently unavailable.' : store.chunksError?.message);
+const chunkError = computed(() => store.chunksError?.code === 4008 ? 'Chunk 当前不可用。' : store.chunksError?.message);
 
 async function load() {
   if (workspaceId.value <= 0 || knowledgeBaseId.value <= 0 || documentId.value <= 0) return;
@@ -99,8 +99,8 @@ async function retry() {
 
 async function confirmDelete() {
   try {
-    await ElMessageBox.confirm('Delete this document?', 'Delete document', {
-      confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning',
+    await ElMessageBox.confirm('确认删除此文档吗？', '删除文档', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
     });
   } catch {
     return;
@@ -135,11 +135,15 @@ watch([workspaceId, knowledgeBaseId, documentId], load);
 
 <style scoped lang="scss">
 .page-header, .actions, .status-line { display: flex; align-items: center; gap: 12px; }
-.page-header { justify-content: space-between; margin-bottom: 24px; }
+.page-header { justify-content: space-between; }
 .page-header h1 { margin: 8px 0 0; }
-.metadata { margin-bottom: 24px; }
-dl { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; margin: 16px 0; }
-dt { color: #606266; }
-dd { margin: 0; }
-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.metadata { margin-bottom: 28px; }
+.status-line { padding-bottom: 16px; border-bottom: 1px solid var(--id-border); }
+dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0 0 18px; background: var(--id-border); }
+dl > div { min-width: 0; padding: 18px; background: #fff; }
+dt { margin-bottom: 7px; color: var(--id-text-muted); font-size: 11px; font-weight: 650; }
+dd { margin: 0; overflow: hidden; color: var(--id-text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--id-text-secondary); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+@media (max-width: 900px) { dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { dl { grid-template-columns: 1fr; } }
 </style>

@@ -19,9 +19,11 @@ import Sidebar from './Sidebar.vue';
 
 <style scoped lang="scss">
 .main-layout {
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  background: var(--id-bg);
 
   &__body {
     display: flex;
@@ -31,8 +33,9 @@ import Sidebar from './Sidebar.vue';
 
   &__content {
     flex: 1;
+    min-width: 0;
     overflow-y: auto;
-    background: #f5f7fa;
+    background: var(--id-bg);
   }
 }
 </style>

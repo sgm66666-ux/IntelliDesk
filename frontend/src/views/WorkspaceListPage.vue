@@ -2,16 +2,19 @@
   <MainLayout>
     <div class="page-container">
     <div class="page-header">
-      <h1>Workspaces</h1>
-      <el-button type="primary" @click="showCreateDialog = true">Create Workspace</el-button>
+      <div>
+        <h1>工作空间</h1>
+        <p>按项目组织知识库、对话与 API 访问凭证。</p>
+      </div>
+      <el-button type="primary" @click="showCreateDialog = true">创建工作空间</el-button>
     </div>
 
-    <LoadingSpinner v-if="ws.loading" text="Loading workspaces..." />
+    <LoadingSpinner v-if="ws.loading" text="正在加载工作空间…" />
     <ErrorMessage v-else-if="ws.error" :message="ws.error" :retry="true" @retry="ws.fetchList()" />
     <EmptyState
       v-else-if="ws.workspaces.length === 0"
-      description="No workspaces yet"
-      action-label="Create your first workspace"
+      description="还没有工作空间"
+      action-label="创建第一个工作空间"
       @action="showCreateDialog = true"
     />
     <div v-else class="workspace-grid">
@@ -19,12 +22,15 @@
         v-for="w in ws.workspaces"
         :key="w.id"
         class="workspace-card"
-        shadow="hover"
+        shadow="never"
         @click="router.push(`/workspaces/${w.id}`)"
       >
         <template #header>
           <div class="workspace-card__header">
-            <span>{{ w.name }}</span>
+            <div class="workspace-card__identity">
+              <span class="workspace-card__icon">W</span>
+              <strong>{{ w.name }}</strong>
+            </div>
             <el-button
               type="danger"
               size="small"
@@ -35,22 +41,23 @@
             </el-button>
           </div>
         </template>
-        <p class="workspace-card__desc">{{ w.description || 'No description' }}</p>
+        <p class="workspace-card__desc">{{ w.description || '暂无描述' }}</p>
+        <div class="workspace-card__footer">进入工作空间 <span>→</span></div>
       </el-card>
     </div>
 
-    <el-dialog v-model="showCreateDialog" title="Create Workspace" width="480px">
+    <el-dialog v-model="showCreateDialog" title="创建工作空间" width="480px">
       <el-form @submit.prevent="handleCreate" label-position="top">
-        <el-form-item label="Name" required>
-          <el-input v-model="newName" placeholder="Workspace name" />
+        <el-form-item label="名称" required>
+          <el-input v-model="newName" placeholder="输入工作空间名称" />
         </el-form-item>
-        <el-form-item label="Description">
-          <el-input v-model="newDesc" type="textarea" placeholder="Optional description" />
+        <el-form-item label="描述">
+          <el-input v-model="newDesc" type="textarea" placeholder="可选，用一句话说明用途" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreateDialog = false">Cancel</el-button>
-        <el-button type="primary" :loading="ws.loading" @click="handleCreate">Create</el-button>
+        <el-button @click="showCreateDialog = false">取消</el-button>
+        <el-button type="primary" :loading="ws.loading" @click="handleCreate">创建</el-button>
       </template>
     </el-dialog>
     </div>
@@ -94,9 +101,9 @@ async function handleCreate() {
 async function handleDelete(workspace: { id: number; name: string }) {
   try {
     await ElMessageBox.confirm(
-      `Are you sure you want to delete "${workspace.name}"? This action cannot be undone.`,
-      'Delete Workspace',
-      { confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning' }
+      `确认删除工作空间“${workspace.name}”吗？此操作无法撤销。`,
+      '删除工作空间',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
     );
     await ws.remove(workspace.id);
   } catch {
@@ -106,25 +113,20 @@ async function handleDelete(workspace: { id: number; name: string }) {
 </script>
 
 <style scoped lang="scss">
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
 .workspace-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 18px;
 }
 
 .workspace-card {
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 
   &:hover {
     transform: translateY(-2px);
+    border-color: #cfd5df;
+    box-shadow: var(--id-shadow-card);
   }
 
   &__header {
@@ -133,9 +135,37 @@ async function handleDelete(workspace: { id: number; name: string }) {
     justify-content: space-between;
   }
 
+  &__identity { display: flex; align-items: center; gap: 10px; color: var(--id-text); }
+
+  &__icon {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--id-accent-soft);
+    color: var(--id-accent);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
   &__desc {
-    color: #909399;
+    min-height: 44px;
+    margin: 0;
+    color: var(--id-text-muted);
     font-size: 14px;
+    line-height: 1.6;
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--id-border);
+    color: var(--id-text-secondary);
+    font-size: 12px;
+    span { color: var(--id-accent); }
   }
 }
 </style>

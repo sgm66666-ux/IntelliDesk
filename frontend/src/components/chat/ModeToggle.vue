@@ -1,5 +1,5 @@
 <template>
-  <div class="mode-toggle" role="tablist" aria-label="Chat mode">
+  <div class="mode-toggle" role="tablist" aria-label="对话模式">
     <button
       type="button"
       class="mode-toggle__btn"
@@ -8,7 +8,7 @@
       :disabled="disabled"
       @click="$emit('update:modelValue', 'rag')"
     >
-      RAG Chat
+      RAG 对话
     </button>
     <button
       type="button"
@@ -39,22 +39,24 @@ defineEmits<{
 <style scoped lang="scss">
 .mode-toggle {
   display: inline-flex;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #f5f7fa;
+  padding: 3px;
+  border: 1px solid var(--id-border);
+  border-radius: 9px;
+  background: #f4f5f7;
 
   &__btn {
     border: none;
     background: transparent;
-    padding: 6px 16px;
+    padding: 6px 14px;
+    border-radius: 6px;
     font-size: 13px;
-    color: #606266;
+    color: var(--id-text-secondary);
     cursor: pointer;
 
     &--active {
-      background: #409eff;
-      color: #fff;
+      background: #fff;
+      color: var(--id-text);
+      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.09);
     }
 
     &:disabled {

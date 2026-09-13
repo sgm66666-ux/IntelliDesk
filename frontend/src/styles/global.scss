@@ -1,26 +1,126 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+:root {
+  --id-accent: #2563eb;
+  --id-accent-hover: #1d4ed8;
+  --id-accent-soft: #eff6ff;
+  --id-bg: #f6f7f9;
+  --id-surface: #ffffff;
+  --id-surface-subtle: #fafafa;
+  --id-text: #111827;
+  --id-text-secondary: #4b5563;
+  --id-text-muted: #8a94a3;
+  --id-border: #e6e8ec;
+  --id-border-strong: #d8dce3;
+  --id-success: #16845b;
+  --id-warning: #b7791f;
+  --id-danger: #d14343;
+  --id-radius-sm: 8px;
+  --id-radius: 12px;
+  --id-radius-lg: 16px;
+  --id-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --id-shadow-card: 0 8px 28px rgba(16, 24, 40, 0.06);
+  --el-color-primary: var(--id-accent);
+  --el-color-primary-light-3: #5b84ee;
+  --el-color-primary-light-5: #91acf5;
+  --el-color-primary-light-7: #c6d5fa;
+  --el-color-primary-light-8: #dce6fc;
+  --el-color-primary-light-9: var(--id-accent-soft);
+  --el-color-primary-dark-2: var(--id-accent-hover);
+  --el-border-color: var(--id-border);
+  --el-border-color-light: #eceef2;
+  --el-border-color-lighter: #f1f2f5;
+  --el-border-radius-base: var(--id-radius-sm);
+  --el-text-color-primary: var(--id-text);
+  --el-text-color-regular: var(--id-text-secondary);
+  --el-text-color-secondary: var(--id-text-muted);
+  --el-fill-color-light: #f7f8fa;
+  --el-bg-color-page: var(--id-bg);
+  color: var(--id-text);
+  background: var(--id-bg);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-html, body, #app {
+* { box-sizing: border-box; }
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
 }
+
+body { overflow: hidden; background: var(--id-bg); }
+button, input, textarea, select { font: inherit; }
+h1, h2, h3, p { margin-top: 0; }
 
 .page-container {
-  padding: 24px;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1240px;
+  min-height: 100%;
   margin: 0 auto;
+  padding: 36px 40px 56px;
 }
 
 .page-header {
-  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
 
-  h1 {
-    font-size: 24px;
-    font-weight: 600;
-    color: #303133;
-  }
+.page-header h1 {
+  margin: 0;
+  color: var(--id-text);
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+}
+
+.page-header p {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: var(--id-text-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.el-button { min-height: 36px; font-weight: 550; box-shadow: none; }
+.el-button--primary:not(.is-plain):not(.is-link):not(.is-text) { border-color: var(--id-accent); background: var(--id-accent); }
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner,
+.el-date-editor.el-input__wrapper { box-shadow: 0 0 0 1px var(--id-border) inset; }
+.el-input__wrapper:hover,
+.el-select__wrapper:hover,
+.el-textarea__inner:hover { box-shadow: 0 0 0 1px var(--id-border-strong) inset; }
+.el-card { border-color: var(--id-border); border-radius: var(--id-radius); box-shadow: var(--id-shadow-sm); }
+.el-table {
+  --el-table-border-color: var(--id-border);
+  --el-table-header-bg-color: #fafbfc;
+  --el-table-row-hover-bg-color: #f7f9fc;
+  overflow: hidden;
+  border: 1px solid var(--id-border);
+  border-radius: var(--id-radius);
+  color: var(--id-text-secondary);
+}
+.el-table th.el-table__cell { height: 46px; color: #697386; font-size: 12px; font-weight: 650; letter-spacing: 0.02em; }
+.el-table td.el-table__cell { padding: 13px 0; }
+.el-dialog { border: 1px solid var(--id-border); border-radius: var(--id-radius-lg); box-shadow: 0 24px 80px rgba(16, 24, 40, 0.14); }
+.el-dialog__title { color: var(--id-text); font-size: 18px; font-weight: 650; }
+.el-tag { border-radius: 999px; font-weight: 550; }
+.el-pagination { --el-pagination-button-bg-color: transparent; }
+
+@media (max-width: 900px) { .page-container { padding: 28px 24px 44px; } }
+@media (max-width: 640px) {
+  .page-container { padding: 22px 16px 36px; }
+  .page-header { flex-direction: column; align-items: stretch; gap: 16px; }
+  .page-header .el-button { width: 100%; }
 }

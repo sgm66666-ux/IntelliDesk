@@ -69,7 +69,7 @@ describe('ApiKeyCreateDialog — one-time secret safety', () => {
 
   it('shows the create form when no secret yet, with Create disabled on empty name', async () => {
     const wrapper = makeMount();
-    expect(wrapper.text()).toContain('Create API Key');
+    expect(wrapper.text()).toContain('创建 API Key');
     await wrapper.find('.ebtn').trigger('click');
     expect(wrapper.emitted('create')).toBeUndefined();
   });
@@ -92,14 +92,14 @@ describe('ApiKeyCreateDialog — one-time secret safety', () => {
       global: GLOBAL,
     });
     expect(wrapper.text()).toContain('sk-x-live-secret');
-    expect(wrapper.text()).toContain('shown only once');
-    expect(wrapper.text()).toContain('Copy');
+    expect(wrapper.text()).toContain('仅显示一次');
+    expect(wrapper.text()).toContain('复制');
   });
 
   it('emits close (which clears the transient secret) when the dialog is closed', async () => {
     const wrapper = makeMount({ secret: { id: 1, workspaceId: 7, name: 'k', keyPrefix: 'sk-x', scope: 'READ', fullKey: 'sk-x', createdAt: '1' } });
-    // Footer "Done" button triggers cancel() → onDialogClose(false) → emit close
-    const doneBtn = wrapper.findAll('.ebtn').find((b) => b.text().includes('Done'));
+    // Footer “完成” button triggers cancel() → onDialogClose(false) → emit close
+    const doneBtn = wrapper.findAll('.ebtn').find((b) => b.text().includes('完成'));
     await doneBtn!.trigger('click');
     expect(wrapper.emitted('close')).toBeTruthy();
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false]);

@@ -4,11 +4,16 @@
       <ErrorMessage v-if="ws.error" :message="ws.error" :retry="true" @retry="loadWorkspace" />
       <div v-else>
         <div class="page-header">
-          <h1>{{ ws.currentWorkspace?.name || 'Workspace' }}</h1>
+          <div>
+            <span class="workspace-shell__eyebrow">工作空间</span>
+            <h1>{{ ws.currentWorkspace?.name || '工作空间' }}</h1>
+            <p>在左侧选择知识库、智能对话或 API Key 管理。</p>
+          </div>
         </div>
-        <el-card>
+        <el-card class="workspace-shell__card" shadow="never">
+          <span class="workspace-shell__label">空间描述</span>
           <p v-if="ws.currentWorkspace?.description">{{ ws.currentWorkspace.description }}</p>
-          <p v-else style="color: #909399">No description</p>
+          <p v-else class="workspace-shell__empty">暂无描述</p>
         </el-card>
       </div>
     </div>
@@ -34,3 +39,13 @@ function loadWorkspace() {
 
 onMounted(loadWorkspace);
 </script>
+
+<style scoped lang="scss">
+.workspace-shell {
+  &__eyebrow { display: block; margin-bottom: 8px; color: var(--id-accent); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
+  &__card { max-width: 760px; }
+  &__label { display: block; margin-bottom: 12px; color: var(--id-text-muted); font-size: 12px; font-weight: 650; }
+  &__card p { margin: 0; color: var(--id-text-secondary); line-height: 1.7; }
+  &__empty { color: var(--id-text-muted) !important; }
+}
+</style>

@@ -86,7 +86,7 @@ describe('ErrorMessage', () => {
     });
 
     expect(wrapper.text()).toContain('Request failed');
-    expect(wrapper.text()).toContain('Code: 4008');
+    expect(wrapper.text()).toContain('错误代码：4008');
     expect(wrapper.text()).toContain('Trace ID: trace-document-action');
   });
 });

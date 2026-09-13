@@ -53,7 +53,7 @@ describe('ChatComposer', () => {
       props: { streaming: true },
       global: { stubs },
     });
-    expect(wrapper.find('.el-button-stub').text()).toContain('Stop');
+    expect(wrapper.find('.el-button-stub').text()).toContain('停止生成');
   });
 });
 
@@ -84,7 +84,7 @@ describe('AssistantAnswer — safety + citations', () => {
       },
     });
     expect(wrapper.text()).toContain('guide.pdf');
-    expect(wrapper.text()).toContain('References');
+    expect(wrapper.text()).toContain('引用来源');
   });
 });
 
@@ -127,7 +127,7 @@ describe('KnowledgeBaseSelector', () => {
     (wrapper.vm as unknown as { selected: number[] }).selected = [7];
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.text()).toContain('KB scope (1)');
+    expect(wrapper.text()).toContain('知识库范围（1）');
   });
 
   it('toggles exactly once when the checkbox itself is clicked', async () => {

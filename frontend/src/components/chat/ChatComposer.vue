@@ -4,18 +4,18 @@
       v-model="text"
       type="textarea"
       :rows="3"
-      :placeholder="disabled ? 'Waiting for current answer…' : 'Type a message (Enter to send, Shift+Enter for newline)'"
+      :placeholder="disabled ? '正在等待当前回答…' : '输入你的问题，按 Enter 发送'"
       resize="none"
       :disabled="disabled"
       @keydown.enter.exact.prevent="submit"
     />
     <div class="chat-composer__actions">
-      <span class="chat-composer__hint">Enter to send · Shift+Enter for newline</span>
+      <span class="chat-composer__hint">Enter 发送 · Shift + Enter 换行</span>
       <el-button v-if="!streaming" type="primary" :disabled="disabled || !canSend" @click="submit">
-        Send
+        发送
       </el-button>
       <el-button v-else type="warning" @click="$emit('stop')">
-        Stop
+        停止生成
       </el-button>
     </div>
   </div>
@@ -57,10 +57,15 @@ watch(
 
 <style scoped lang="scss">
 .chat-composer {
-  border: 1px solid #e4e7ed;
-  border-radius: 10px;
+  border: 1px solid var(--id-border-strong);
+  border-radius: 14px;
   background: #fff;
-  padding: 10px;
+  padding: 10px 12px 11px;
+  box-shadow: 0 8px 28px rgba(16, 24, 40, 0.06);
+
+  &:focus-within { border-color: #9bb7f5; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08), 0 8px 28px rgba(16, 24, 40, 0.06); }
+  :deep(.el-textarea__inner) { min-height: 70px !important; padding: 8px 4px; border: 0; box-shadow: none; color: var(--id-text); line-height: 1.6; }
+  :deep(.el-textarea__inner::placeholder) { color: #a2aab7; }
 
   &__actions {
     display: flex;
@@ -69,6 +74,6 @@ watch(
     margin-top: 8px;
   }
 
-  &__hint { font-size: 12px; color: #c0c4cc; }
+  &__hint { font-size: 11px; color: var(--id-text-muted); }
 }
 </style>

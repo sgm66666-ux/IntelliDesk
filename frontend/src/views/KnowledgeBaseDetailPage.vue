@@ -3,52 +3,52 @@
     <div class="page-container">
       <div class="page-header">
         <div>
-          <el-button text @click="goBack">Back</el-button>
-          <h1>{{ kbStore.currentKnowledgeBase?.name || 'Knowledge Base' }}</h1>
+          <el-button text @click="goBack">← 返回知识库</el-button>
+          <h1>{{ kbStore.currentKnowledgeBase?.name || '知识库' }}</h1>
         </div>
         <div class="actions">
-          <el-button @click="openEdit">Edit</el-button>
-          <el-button type="danger" plain @click="confirmDelete">Delete</el-button>
+          <el-button @click="openEdit">编辑</el-button>
+          <el-button type="danger" plain @click="confirmDelete">删除</el-button>
         </div>
       </div>
 
-      <LoadingSpinner v-if="kbStore.detailLoading" text="Loading knowledge base..." />
+      <LoadingSpinner v-if="kbStore.detailLoading" text="正在加载知识库…" />
       <ErrorMessage v-else-if="kbStore.detailError" :message="kbStore.detailError.message" :retry="true" @retry="load" />
       <template v-else-if="kbStore.currentKnowledgeBase">
         <el-card class="metadata" shadow="never">
-          <p>{{ kbStore.currentKnowledgeBase.description || 'No description' }}</p>
-          <span>{{ kbStore.currentKnowledgeBase.chunkStrategy }} · size {{ kbStore.currentKnowledgeBase.chunkSize }} · overlap {{ kbStore.currentKnowledgeBase.chunkOverlap }}</span>
+          <p>{{ kbStore.currentKnowledgeBase.description || '暂无描述' }}</p>
+          <span>{{ kbStore.currentKnowledgeBase.chunkStrategy }} · Chunk {{ kbStore.currentKnowledgeBase.chunkSize }} · 重叠 {{ kbStore.currentKnowledgeBase.chunkOverlap }}</span>
         </el-card>
 
         <section class="documents">
           <div class="section-header">
-            <h2>Documents</h2>
+            <div><h2>文档</h2><p>上传并管理用于检索的知识源。</p></div>
             <div class="section-actions">
-              <el-select v-model="docStore.statusFilter" clearable placeholder="All statuses" @change="filterDocuments">
-                <el-option v-for="status in statuses" :key="status" :label="status" :value="status" />
+              <el-select v-model="docStore.statusFilter" clearable placeholder="全部状态" @change="filterDocuments">
+                <el-option v-for="status in statuses" :key="status" :label="documentStatusLabel(status)" :value="status" />
               </el-select>
-              <el-button @click="loadDocuments">Refresh</el-button>
+              <el-button @click="loadDocuments">刷新</el-button>
             </div>
           </div>
           <DocumentUpload :loading="docStore.uploadLoading" :progress="docStore.uploadProgress" @upload="upload" />
           <el-alert v-if="docStore.uploadAccepted" type="success" :closable="false" show-icon class="accepted-message">
-            {{ docStore.uploadAccepted.fileName }} accepted / waiting for processing. Open its detail to monitor processing.
+            {{ docStore.uploadAccepted.fileName }} 已接收，正在等待处理。可进入详情查看进度。
           </el-alert>
           <ErrorMessage v-if="docStore.actionError" :message="docStore.actionError.message" :retry="false" />
-          <LoadingSpinner v-if="docStore.listLoading" text="Loading documents..." />
+          <LoadingSpinner v-if="docStore.listLoading" text="正在加载文档…" />
           <ErrorMessage v-else-if="docStore.listError" :message="docStore.listError.message" :retry="true" @retry="loadDocuments" />
-          <EmptyState v-else-if="docStore.items.length === 0" description="No documents found" />
+          <EmptyState v-else-if="docStore.items.length === 0" description="暂无文档" />
           <div v-else>
             <el-table :data="docStore.items">
-              <el-table-column prop="fileName" label="File" min-width="260" />
-              <el-table-column prop="contentType" label="Type" min-width="160" />
-              <el-table-column label="Status" min-width="230">
+              <el-table-column prop="fileName" label="文件" min-width="260" />
+              <el-table-column prop="contentType" label="类型" min-width="160" />
+              <el-table-column label="状态" min-width="150">
                 <template #default="scope"><DocumentStatusBadge :status="scope.row.status" /></template>
               </el-table-column>
-              <el-table-column prop="createdAt" label="Created" min-width="180" />
-              <el-table-column label="Action" width="120">
+              <el-table-column prop="createdAt" label="创建时间" min-width="180" />
+              <el-table-column label="操作" width="120">
                 <template #default="scope">
-                  <el-button text type="primary" @click="openDocument(scope.row.id)">Details</el-button>
+                  <el-button text type="primary" @click="openDocument(scope.row.id)">查看详情</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -66,7 +66,7 @@
 
       <KnowledgeBaseFormDialog
         v-model="showEdit"
-        title="Edit Knowledge Base"
+        title="编辑知识库"
         :initial-value="editValue"
         :loading="kbStore.actionLoading"
         :submit-error="kbStore.actionError?.message"
@@ -91,6 +91,7 @@ import { useKnowledgeBaseStore } from '@/stores/knowledgeBase';
 import { useDocumentStore } from '@/stores/document';
 import type { KnowledgeBaseRequest } from '@/types/knowledgeBase';
 import type { DocumentStatus } from '@/types/document';
+import { documentStatusLabel } from '@/lib/display';
 
 const route = useRoute();
 const router = useRouter();
@@ -142,8 +143,8 @@ async function update(value: KnowledgeBaseRequest) {
 
 async function confirmDelete() {
   try {
-    await ElMessageBox.confirm('All documents must be deleted before deleting this knowledge base.', 'Delete knowledge base', {
-      confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning',
+    await ElMessageBox.confirm('删除知识库前必须先删除其中的全部文档。', '删除知识库', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
     });
     await kbStore.remove(workspaceId.value, knowledgeBaseId.value);
     goBack();
@@ -171,12 +172,15 @@ watch([workspaceId, knowledgeBaseId], () => load());
 <style scoped lang="scss">
 .page-header, .section-header, .actions, .section-actions { display: flex; align-items: center; gap: 12px; }
 .page-header, .section-header { justify-content: space-between; }
-.page-header { margin-bottom: 24px; }
 .page-header h1 { margin: 8px 0 0; }
-.metadata { margin-bottom: 24px; }
-.metadata p { margin-top: 0; }
-.metadata span { color: #606266; }
-.documents { margin-top: 24px; }
+.metadata { margin-bottom: 28px; background: var(--id-surface-subtle); }
+.metadata p { margin: 0 0 10px; color: var(--id-text-secondary); line-height: 1.65; }
+.metadata span { color: var(--id-text-muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+.documents { margin-top: 30px; }
+.section-header { margin-bottom: 16px; }
+.section-header h2 { margin: 0; color: var(--id-text); font-size: 18px; }
+.section-header p { margin: 5px 0 0; color: var(--id-text-muted); font-size: 13px; }
 .accepted-message { margin: 16px 0; }
 .pagination { justify-content: flex-end; margin-top: 16px; }
+@media (max-width: 720px) { .section-header { align-items: flex-start; flex-direction: column; } }
 </style>

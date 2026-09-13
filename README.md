@@ -1,6 +1,9 @@
 # IntelliDesk
 
-IntelliDesk 是一个可本地运行的企业知识库、RAG 对话与工具调用 Agent 平台。项目重点不是功能数量，而是把异步文档处理、混合检索、安全边界、流式交互、失败恢复和可审计性能证据串成一套完整工程链路。
+> 企业知识库RAG与Tool-Calling Agent平台  
+>  Spring Boot · Spring AI · pgvector · Elasticsearch · Vue3 · Ollama
+
+IntelliDesk 是一个可本地运行的企业知识库、RAG 对话与工具调用 Agent 平台。项目重点不是功能数量，而是把异步文档处理、混合检索、安全边界、流式交互、失败恢复和可审计性能证据串成一套完整工程链路。前端采用中文优先的企业级 Knowledge Copilot 视觉语言，覆盖知识库管理、文档分块、可追溯问答、工具调用轨迹与 API Key 管理。
 
 ## 核心能力
 
@@ -65,10 +68,24 @@ Agent: Query -> bounded loop -> tool selection -> validation/execution
 
 要求：Docker Desktop / Docker Engine、Docker Compose，以及可用的本地 provider 配置。复制模板并只在本机填写运行时秘密：
 
+### Windows PowerShell
+
 ```powershell
-Copy-Item .env.example .env
-docker compose -f deploy/docker-compose.yml up -d --build
-docker compose -f deploy/docker-compose.yml ps
+if (-not (Test-Path .env)) {
+    Copy-Item .env.example .env
+}
+
+docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yml ps
+```
+
+### Linux / macOS
+
+```bash
+[ -f .env ] || cp .env.example .env
+
+docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yml ps
 ```
 
 应用入口：
@@ -83,22 +100,55 @@ docker compose -f deploy/docker-compose.yml ps
 
 服务 healthy 后，为每次演示选择一个新的安全 RunId。脚本只调用正式 public APIs，创建隔离用户、工作空间、知识库、已索引文档、RAG conversation 和只读 API-key metadata；输出 manifest 不含密码、token 或完整 API key。
 
+Demo seed 脚本使用 PowerShell 7（`pwsh`），Windows、Linux 和 macOS 均可运行。
+
+### Windows PowerShell
+
 ```powershell
 $env:INTELLIDESK_DEMO_PASSWORD = '<choose-a-local-demo-password>'
 pwsh ./deploy/demo-seed.ps1 -RunId portfolio-001
 Remove-Item Env:INTELLIDESK_DEMO_PASSWORD
 ```
 
+### Linux / macOS
+
+```bash
+export INTELLIDESK_DEMO_PASSWORD='<choose-a-local-demo-password>'
+pwsh ./deploy/demo-seed.ps1 -RunId portfolio-001
+unset INTELLIDESK_DEMO_PASSWORD
+```
+
 相同 RunId 再次执行会 fail closed；换一个 RunId 可得到另一套独立数据。受控 fixture 位于 [demo-knowledge.txt](docs/demo/demo-knowledge.txt)。
 
 ## 项目截图
 
-以下图片来自真实本地 UI，截图前已关闭 API key 一次性 secret 弹窗，并检查无 token、密码或完整 key：
+以下图片来自当前真实本地 UI。截图仅展示既有演示数据，未包含 token、密码、Authorization、cookie 或完整 API Key；API Key 页面只显示不可用于认证的 prefix。
 
-- [知识库与已完成文档](docs/demo/screenshots/knowledge-base-documents.png)
-- [文档详情与 chunks](docs/demo/screenshots/document-detail-chunks.png)
-- [RAG 对话与引用](docs/demo/screenshots/rag-conversation-citations.png)
-- [API key 元数据管理](docs/demo/screenshots/api-key-metadata.png)
+### 智能对话与工具调用轨迹
+
+RAG 与 Agent 共用统一的对话工作区，展示知识库范围、用户/AI 消息层级、检索工具执行状态和现代 Chat Composer。回答通过真实 SSE 连接增量呈现。
+
+![智能对话与工具调用轨迹](docs/demo/screenshots/rag-conversation-citations.png)
+
+![Agent工具调用轨迹](docs/demo/screenshots/agent-tool-trace.png)
+
+### 知识库与文档管理
+
+知识库详情集中展示分块策略、文档处理状态与主要操作，弱化次要 metadata。
+
+![知识库与已完成文档](docs/demo/screenshots/knowledge-base-documents.png)
+
+### 文档详情与 Chunk
+
+文档详情保留解析状态、文件 metadata、分块策略以及实际用于检索的 Chunk 内容。
+
+![文档详情与 Chunk](docs/demo/screenshots/document-detail-chunks.png)
+
+### API Key 管理
+
+开发者 Console 风格的凭证列表只展示名称、prefix、scope、状态和使用时间，完整 secret 仍只在创建瞬间返回一次。
+
+![API Key 元数据管理](docs/demo/screenshots/api-key-metadata.png)
 
 ## 验证状态
 
@@ -142,5 +192,3 @@ IntelliDesk/
 ## 当前状态与边界
 
 本公开版本对应已完成的 Phase 7 与 Phase 8 工程快照；大规模 raw、run-set、manifest 和历史评审记录未收入公开仓库。
-
-Phase 9 的面试指南、简历 bullet、问答或演讲稿不属于本 README，也不在当前 Wave 4 范围内。

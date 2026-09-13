@@ -3,12 +3,12 @@
     <div class="chat-page">
       <div class="chat-page__sidebar">
         <div class="chat-page__sidebar-header">
-          <span class="chat-page__title">Conversations</span>
+          <div><span class="chat-page__title">对话</span><small>最近会话</small></div>
           <el-button size="small" type="primary" :loading="convoStore.actionLoading" @click="createConversation">
-            + New
+            新建
           </el-button>
         </div>
-        <LoadingSpinner v-if="convoStore.listLoading" :size="24" text="Loading…" />
+        <LoadingSpinner v-if="convoStore.listLoading" :size="24" text="正在加载…" />
         <ul v-else-if="convoStore.items.length" class="chat-page__list">
           <li
             v-for="c in convoStore.items"
@@ -16,7 +16,7 @@
             :class="['chat-page__item', { 'chat-page__item--active': c.id === conversationId }]"
             @click="openConversation(c.id)"
           >
-            <span class="chat-page__item-txt">{{ c.title || 'Untitled' }}</span>
+            <span class="chat-page__item-txt">{{ c.title || '未命名对话' }}</span>
             <el-button
               text
               type="danger"
@@ -28,19 +28,19 @@
             </el-button>
           </li>
         </ul>
-        <div v-else class="chat-page__placeholder">No conversations yet</div>
+        <div v-else class="chat-page__placeholder">暂无历史对话</div>
       </div>
 
       <div class="chat-page__main">
         <!-- Header -->
         <div class="chat-page__tabs">
-          <ModeToggle v-model="mode" :disabled="chatStore.isStreaming" />
+          <ModeToggle v-model="mode" :disabled="isAnswering" />
           <KnowledgeBaseSelector
             v-if="mode === 'rag'"
             ref="kbSelectorRef"
             :items="kbItems"
             :loading="kbLoading"
-            :disabled="chatStore.isStreaming"
+            :disabled="isAnswering"
           />
         </div>
 
@@ -56,7 +56,9 @@
           />
           <template v-else>
             <div v-if="items.length === 0" class="chat-page__empty">
-              <el-empty :description="emptyHint" />
+              <span class="chat-page__empty-icon">AI</span>
+              <h2>有什么可以帮你？</h2>
+              <p>{{ emptyHint }}</p>
             </div>
             <div
               v-for="(item, idx) in items"
@@ -76,6 +78,7 @@
 
               <!-- Assistant -->
               <div v-else class="chat-page__bubble chat-page__bubble--assistant">
+                <div class="chat-page__assistant-label"><span>AI</span>IntelliDesk</div>
                 <AssistantAnswer
                   :content="item.message.content"
                   :citations="item.citations"
@@ -91,7 +94,7 @@
                     >
                       ⚠ {{ item.error.message }}
                       <el-button size="small" type="primary" link @click="loadMessages">
-                        Reload conversation
+                        重新加载对话
                       </el-button>
                     </div>
                   </template>
@@ -105,7 +108,7 @@
         <div class="chat-page__composer">
           <ChatComposer
             :disabled="composerDisabled"
-            :streaming="chatStore.isStreaming"
+            :streaming="isAnswering"
             @send="onSend"
             @stop="onStop"
           />
@@ -132,6 +135,7 @@ import { useConversationStore } from '@/stores/conversation';
 import { useChatStore } from '@/stores/chat';
 import { listKnowledgeBases } from '@/api/knowledgeBase';
 import { buildTimeline, parseToolTrace, type DisplayItem } from '@/lib/message';
+import { createStreamingTextRenderer } from '@/lib/streamingText';
 import type { ChatMessage } from '@/types/conversation';
 import type { ChatMode, ToolTraceItem } from '@/types/chat';
 import type { KnowledgeBase } from '@/types/knowledgeBase';
@@ -159,6 +163,17 @@ const liveAssist = ref<{
   error?: { message: string };
 } | null>(null);
 let traceKeySeq = 0;
+let backendFinished = false;
+
+const tokenRenderer = createStreamingTextRenderer((text) => {
+  if (liveAssist.value?.status === 'streaming') {
+    liveAssist.value.content += text;
+  }
+});
+
+const isAnswering = computed(() =>
+  chatStore.isStreaming || liveAssist.value?.status === 'streaming'
+);
 
 const items = computed<DisplayItem[]>(() => {
   const timeline = buildTimeline(convoStore.messages);
@@ -196,7 +211,7 @@ const items = computed<DisplayItem[]>(() => {
 });
 
 const composerDisabled = computed(() => {
-  if (chatStore.isStreaming) return true;
+  if (isAnswering.value) return true;
   if (mode.value === 'rag') {
     const selected = kbSelectorRef.value?.selected ?? [];
     return selected.length === 0;
@@ -206,8 +221,8 @@ const composerDisabled = computed(() => {
 
 const emptyHint = computed(() =>
   mode.value === 'rag'
-    ? 'Ask about documents in your selected knowledge bases.'
-    : 'Ask the built-in agent to search or compute for you.'
+    ? '基于当前知识库进行提问，我会结合检索结果生成回答并提供引用来源。'
+    : '告诉内置 Agent 你的目标，它会按需调用工具完成任务。'
 );
 
 function valid() {
@@ -257,11 +272,11 @@ async function onSend(query: string) {
   if (mode.value === 'rag') {
     const selected = kbSelectorRef.value?.selected ?? [];
     if (kbItems.value.length === 0) {
-      ElMessage.warning('Create a knowledge base first to use RAG chat.');
+      ElMessage.warning('请先创建知识库，再使用 RAG 对话。');
       return;
     }
     if (selected.length === 0) {
-      ElMessage.warning('Select at least one knowledge base to search.');
+      ElMessage.warning('请至少选择一个知识库。');
       return;
     }
     startStream(query, mode.value, selected);
@@ -271,6 +286,8 @@ async function onSend(query: string) {
 }
 
 function startStream(query: string, streamMode: ChatMode, kbIds?: number[]) {
+  tokenRenderer.cancel();
+  backendFinished = false;
   optimisticUser.value = query;
   liveAssist.value = {
     content: '',
@@ -288,7 +305,7 @@ function startStream(query: string, streamMode: ChatMode, kbIds?: number[]) {
     handlers: {
       onStart: () => {},
       onToken: ({ delta }) => {
-        if (liveAssist.value) liveAssist.value.content += delta;
+        if (liveAssist.value?.status === 'streaming') tokenRenderer.enqueue(delta);
       },
       onCitations: (citations) => {
         if (liveAssist.value) liveAssist.value.citations = citations;
@@ -312,23 +329,32 @@ function startStream(query: string, streamMode: ChatMode, kbIds?: number[]) {
         }
       },
       onDone: () => {
-        optimisticUser.value = null;
-        liveAssist.value = null;
-        loadMessages();
+        backendFinished = true;
+        tokenRenderer.finish(() => {
+          if (liveAssist.value?.status !== 'streaming') return;
+          optimisticUser.value = null;
+          liveAssist.value = null;
+          backendFinished = false;
+          loadMessages();
+        });
       },
       onError: ({ message }) => {
+        tokenRenderer.flush();
+        backendFinished = false;
         if (liveAssist.value) {
           liveAssist.value.status = 'failed';
-          liveAssist.value.error = { message: message || 'Chat failed' };
+          liveAssist.value.error = { message: message || '对话失败' };
         }
         optimisticUser.value = null;
         loadMessages();
       },
       onDisconnect: (reason) => {
+        tokenRenderer.flush();
+        backendFinished = false;
         if (liveAssist.value) {
           liveAssist.value.status = 'interrupted';
           liveAssist.value.error = {
-            message: reason || 'Connection lost before the answer completed',
+            message: reason || '回答完成前连接已中断',
           };
         }
         optimisticUser.value = null;
@@ -346,10 +372,15 @@ function startStream(query: string, streamMode: ChatMode, kbIds?: number[]) {
 }
 
 function onStop() {
+  if (backendFinished) {
+    tokenRenderer.flush();
+    return;
+  }
   chatStore.stop();
+  tokenRenderer.flush();
   if (liveAssist.value) {
     liveAssist.value.status = 'interrupted';
-    liveAssist.value.error = { message: 'Stopped by user. Partial state may remain.' };
+    liveAssist.value.error = { message: '已停止生成，部分内容可能仍会保留。' };
   }
   optimisticUser.value = null;
   loadMessages();
@@ -363,7 +394,7 @@ async function createConversation() {
       params: { workspaceId: workspaceId.value, conversationId: c.id },
     });
   } catch {
-    ElMessage.error('Failed to create conversation');
+    ElMessage.error('创建对话失败');
   }
 }
 
@@ -377,9 +408,9 @@ async function openConversation(id: number) {
 
 async function deleteConversation(id: number) {
   try {
-    await ElMessageBox.confirm('Delete this conversation?', 'Delete conversation', {
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
+    await ElMessageBox.confirm('确认删除此对话吗？', '删除对话', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
       type: 'warning',
     });
     await convoStore.remove(workspaceId.value, id);
@@ -417,6 +448,8 @@ function scrollToBottom() {
 watch(
   () => [conversationId.value, workspaceId.value] as const,
   ([w, c]) => {
+    tokenRenderer.cancel();
+    backendFinished = false;
     chatStore.stop();
     optimisticUser.value = null;
     liveAssist.value = null;
@@ -447,6 +480,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  tokenRenderer.cancel();
   chatStore.stop();
 });
 </script>
@@ -454,31 +488,34 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .chat-page {
   display: flex;
-  height: calc(100vh - 60px);
-  background: #fff;
+  height: calc(100dvh - 64px);
+  min-height: 0;
+  background: var(--id-surface);
 
   &__sidebar {
-    width: 240px;
-    border-right: 1px solid #e4e7ed;
+    width: 250px;
+    border-right: 1px solid var(--id-border);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    background: #fafafa;
+    background: #fbfbfc;
   }
 
   &__sidebar-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    padding: 12px;
+    padding: 20px 16px 14px;
+    border-bottom: 1px solid var(--id-border);
+    small { display: block; margin-top: 4px; color: var(--id-text-muted); font-size: 10px; }
   }
 
-  &__title { font-weight: 600; color: #303133; }
+  &__title { color: var(--id-text); font-size: 14px; font-weight: 650; }
 
   &__list {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 10px;
     overflow-y: auto;
     flex: 1;
   }
@@ -487,14 +524,17 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 10px 12px;
+    min-height: 40px;
+    margin-bottom: 2px;
+    padding: 8px 10px;
+    border-radius: 8px;
     cursor: pointer;
-    color: #303133;
+    color: var(--id-text-secondary);
     font-size: 13px;
 
-    &:hover { background: #f0f2f5; }
+    &:hover { background: #f1f3f6; color: var(--id-text); }
 
-    &--active { background: #ecf5ff; color: #409eff; font-weight: 600; }
+    &--active { background: var(--id-accent-soft); color: var(--id-accent); font-weight: 620; }
 
     &-txt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -502,7 +542,7 @@ onBeforeUnmount(() => {
     &:hover &-del { visibility: visible; }
   }
 
-  &__placeholder { padding: 16px; color: #c0c4cc; font-size: 13px; }
+  &__placeholder { padding: 22px 20px; color: var(--id-text-muted); font-size: 12px; }
 
   &__main {
     flex: 1;
@@ -515,33 +555,49 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid #e4e7ed;
+    min-height: 58px;
+    padding: 10px 22px;
+    border-bottom: 1px solid var(--id-border);
+    background: rgba(255, 255, 255, 0.97);
   }
 
   &__messages {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
-    background: #f5f7fa;
+    padding: 28px clamp(20px, 5vw, 64px);
+    background: #f8f9fb;
+    scroll-behavior: smooth;
   }
 
-  &__empty { padding-top: 80px; }
+  &__empty {
+    display: flex;
+    max-width: 580px;
+    margin: 0 auto;
+    padding-top: min(16vh, 130px);
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    &-icon { display: grid; width: 46px; height: 46px; margin-bottom: 20px; place-items: center; border: 1px solid #d4def8; border-radius: 14px; background: #fff; color: var(--id-accent); box-shadow: var(--id-shadow-sm); font-size: 12px; font-weight: 750; }
+    h2 { margin: 0; color: var(--id-text); font-size: 24px; font-weight: 650; letter-spacing: -0.03em; }
+    p { margin: 12px 0 0; color: var(--id-text-muted); font-size: 14px; line-height: 1.7; }
+  }
 
-  &__msg-row { margin-bottom: 14px; }
+  &__msg-row { width: min(100%, 880px); margin: 0 auto 22px; }
 
   &__bubble {
-    max-width: 640px;
-    padding: 10px 14px;
-    border-radius: 10px;
+    max-width: 780px;
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 1.75;
     white-space: pre-wrap;
     word-break: break-word;
 
     &--user {
+      width: fit-content;
+      max-width: min(680px, 88%);
       margin-left: auto;
-      background: #409eff;
+      padding: 11px 15px;
+      border-radius: 13px 13px 4px 13px;
+      background: var(--id-accent);
       color: #fff;
       display: flex;
       gap: 8px;
@@ -555,19 +611,31 @@ onBeforeUnmount(() => {
     }
 
     &--assistant {
-      background: #fff;
-      border: 1px solid #e4e7ed;
+      padding: 2px 0;
+      color: #273244;
     }
   }
 
+  &__assistant-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    color: var(--id-text);
+    font-size: 12px;
+    font-weight: 650;
+    span { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid #d8e2fa; border-radius: 7px; background: #fff; color: var(--id-accent); font-size: 9px; }
+  }
+
+  &__tool-item { max-width: 780px; }
   &__trace { margin-top: 6px; }
 
   &__interrupted {
     margin-top: 10px;
     padding: 8px 10px;
-    border: 1px solid #eebe77;
-    background: #fdf6ec;
-    color: #e6a23c;
+    border: 1px solid #ead29b;
+    background: #fffbeb;
+    color: #9a6700;
     border-radius: 8px;
     font-size: 13px;
     display: flex;
@@ -577,9 +645,50 @@ onBeforeUnmount(() => {
   }
 
   &__composer {
-    padding: 12px 16px;
-    border-top: 1px solid #e4e7ed;
-    background: #fff;
+    padding: 14px clamp(20px, 5vw, 64px) 18px;
+    border-top: 1px solid var(--id-border);
+    background: rgba(255, 255, 255, 0.97);
+    :deep(.chat-composer) { width: min(100%, 880px); margin: 0 auto; }
+  }
+}
+
+@media (max-width: 900px) {
+  .chat-page__sidebar { width: 190px; }
+}
+
+@media (max-width: 720px) {
+  .chat-page {
+    flex-direction: column;
+
+    &__sidebar {
+      display: flex;
+      width: 100%;
+      max-height: 116px;
+      border-right: 0;
+      border-bottom: 1px solid var(--id-border);
+    }
+
+    &__sidebar-header {
+      align-items: center;
+      padding: 8px 12px 6px;
+      border-bottom: 0;
+      small { display: none; }
+    }
+
+    &__list {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 5px;
+      padding: 4px 10px 8px;
+      overflow-x: auto;
+    }
+
+    &__item { min-width: 150px; margin: 0; }
+    &__placeholder { padding: 4px 14px 10px; }
+    &__main { min-height: 0; }
+    &__tabs { padding-inline: 14px; }
+    &__messages { padding: 22px 16px; }
+    &__composer { padding: 12px 14px 14px; }
   }
 }
 </style>

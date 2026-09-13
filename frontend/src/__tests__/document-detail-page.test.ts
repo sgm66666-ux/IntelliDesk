@@ -97,7 +97,7 @@ describe('DocumentDetailPage action errors', () => {
     });
     const wrapper = mountPage();
     await wrapper.vm.$nextTick();
-    await wrapper.findAll('button').find((button) => button.text() === 'Retry')!.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === '重试')!.trigger('click');
     await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).toContain('Retry unavailable');
@@ -114,7 +114,7 @@ describe('DocumentDetailPage action errors', () => {
     });
     const wrapper = mountPage();
     await wrapper.vm.$nextTick();
-    await wrapper.findAll('button').find((button) => button.text() === 'Delete')!.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === '删除')!.trigger('click');
     await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).toContain('Delete denied');
@@ -132,7 +132,7 @@ describe('DocumentDetailPage action errors', () => {
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('Old failure');
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Retry')!.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === '重试')!.trigger('click');
     await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).not.toContain('Old failure');

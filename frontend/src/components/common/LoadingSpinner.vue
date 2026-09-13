@@ -24,16 +24,16 @@ withDefaults(defineProps<{
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px;
+    padding: 64px 48px;
 
   &__icon {
     animation: spin 1s linear infinite;
-    color: #409eff;
+    color: var(--id-accent);
   }
 
   &__text {
     margin-top: 12px;
-    color: #909399;
+    color: var(--id-text-muted);
     font-size: 14px;
   }
 }

@@ -3,15 +3,15 @@
     <div class="page-container">
       <div class="page-header">
         <div>
-          <h1>Conversations</h1>
-          <p>Chat with your knowledge bases or the built-in agent.</p>
+          <h1>智能对话</h1>
+          <p>基于知识库发起可追溯问答，或使用内置 Agent 完成任务。</p>
         </div>
         <el-button type="primary" :loading="store.actionLoading" @click="createNew">
-          New Conversation
+          新建对话
         </el-button>
       </div>
 
-      <LoadingSpinner v-if="store.listLoading" text="Loading conversations…" />
+      <LoadingSpinner v-if="store.listLoading" text="正在加载对话…" />
       <ErrorMessage
         v-else-if="store.listError"
         :message="store.listError.message"
@@ -20,22 +20,22 @@
       />
       <EmptyState
         v-else-if="store.items.length === 0"
-        description="No conversations yet. Start a new one to chat."
-        action-label="New Conversation"
+        description="还没有对话，创建一个开始提问吧"
+        action-label="新建对话"
         @action="createNew"
       />
       <el-table v-else :data="store.items" @row-click="openChat" class="conversation-table">
-        <el-table-column prop="title" label="Title" min-width="260" />
-        <el-table-column label="Updated" width="180">
+        <el-table-column prop="title" label="对话标题" min-width="260" />
+        <el-table-column label="最近更新" width="180">
           <template #default="scope">{{ formatDate(scope.row.updatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="Created" width="180">
+        <el-table-column label="创建时间" width="180">
           <template #default="scope">{{ formatDate(scope.row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="Actions" width="150" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right">
           <template #default="scope">
-            <el-button text type="primary" @click.stop="openRename(scope.row)">Rename</el-button>
-            <el-button text type="danger" @click.stop="confirmDelete(scope.row)">Delete</el-button>
+            <el-button text type="primary" @click.stop="openRename(scope.row)">重命名</el-button>
+            <el-button text type="danger" @click.stop="confirmDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -75,7 +75,7 @@ async function createNew() {
       params: { workspaceId: workspaceId.value, conversationId: conversation.id },
     });
   } catch {
-    ElMessage.error('Failed to create conversation');
+    ElMessage.error('创建对话失败');
   }
 }
 
@@ -88,13 +88,13 @@ function openChat(row: Conversation) {
 
 async function openRename(row: Conversation) {
   try {
-    const { value } = await ElMessageBox.prompt('Conversation title', 'Rename conversation', {
+    const { value } = await ElMessageBox.prompt('输入新的对话标题', '重命名对话', {
       inputValue: row.title,
       inputPattern: /^.{1,256}$/,
-      inputErrorMessage: 'Title must be 1-256 characters',
+      inputErrorMessage: '标题长度需为 1–256 个字符',
     });
     await store.rename(workspaceId.value, row.id, value);
-    ElMessage.success('Conversation renamed');
+    ElMessage.success('对话已重命名');
   } catch {
     /* cancelled */
   }
@@ -102,13 +102,13 @@ async function openRename(row: Conversation) {
 
 async function confirmDelete(row: Conversation) {
   try {
-    await ElMessageBox.confirm(`Delete "${row.title}"? Messages will be removed.`, 'Delete conversation', {
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
+    await ElMessageBox.confirm(`确认删除“${row.title}”吗？其中的消息也会被删除。`, '删除对话', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
       type: 'warning',
     });
     await store.remove(workspaceId.value, row.id);
-    ElMessage.success('Conversation deleted');
+    ElMessage.success('对话已删除');
   } catch {
     /* cancelled */
   }
@@ -125,18 +125,6 @@ watch(workspaceId, () => load());
 </script>
 
 <style scoped lang="scss">
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.page-header p {
-  margin: 4px 0 0;
-  color: #606266;
-}
-
 .conversation-table {
   cursor: pointer;
 }

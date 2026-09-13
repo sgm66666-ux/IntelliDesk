@@ -3,15 +3,15 @@
     <div class="page-container">
       <div class="page-header">
         <div>
-          <h1>API Keys</h1>
-          <p>Manage read-only API keys for this workspace.</p>
+          <h1>API Key 管理</h1>
+          <p>创建和管理用于调用 IntelliDesk API 的访问凭证。</p>
         </div>
         <el-button type="primary" :data-testid="`${dataId}-new`" @click="openCreate">
-          New API Key
+          创建 API Key
         </el-button>
       </div>
 
-      <LoadingSpinner v-if="store.listLoading" text="Loading API keys…" />
+      <LoadingSpinner v-if="store.listLoading" text="正在加载 API Key…" />
       <ErrorMessage
         v-else-if="store.listError"
         :message="store.listError.message"
@@ -22,8 +22,8 @@
       />
       <EmptyState
         v-else-if="store.items.length === 0"
-        description="No API keys yet. Create one to authenticate programmatic access."
-        action-label="New API Key"
+        description="暂无 API Key，可创建一个用于程序化访问"
+        action-label="创建 API Key"
         @action="openCreate"
       />
       <ApiKeyTable
@@ -98,9 +98,9 @@ function onCreateDialogClose() {
 async function onRevoke(key: ApiKey) {
   try {
     await store.revoke(workspaceId.value, key.id);
-    ElMessage.success('API key revoked');
+    ElMessage.success('API Key 已撤销');
   } catch {
-    ElMessage.error('Failed to revoke API key');
+    ElMessage.error('撤销 API Key 失败');
   }
 }
 
@@ -130,15 +130,5 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.page-header p {
-  margin: 4px 0 0;
-  color: #606266;
-}
+.page-container { max-width: 1320px; }
 </style>

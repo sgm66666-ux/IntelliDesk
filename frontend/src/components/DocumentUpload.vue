@@ -7,10 +7,10 @@
       accept=".pdf,.md,.markdown,.txt,text/plain,text/markdown,application/pdf"
       @change="selectFile"
     >
-      <el-button type="primary" :loading="loading">Upload document</el-button>
+      <el-button type="primary" plain :loading="loading">选择文档</el-button>
     </el-upload>
     <span v-if="file" class="document-upload__name">{{ file.name }}</span>
-    <el-button v-if="file" type="primary" :loading="loading" @click="submit">Send</el-button>
+    <el-button v-if="file" type="primary" :loading="loading" @click="submit">上传</el-button>
     <el-progress v-if="loading" :percentage="progress" :show-text="true" />
   </div>
 </template>
@@ -39,12 +39,19 @@ function submit() {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  min-height: 72px;
+  padding: 16px;
+  border: 1px dashed var(--id-border-strong);
+  border-radius: var(--id-radius);
+  background: var(--id-surface-subtle);
 
   &__name {
     max-width: 320px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: var(--id-text-secondary);
+    font-size: 13px;
   }
 }
 </style>
