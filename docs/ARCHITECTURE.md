@@ -1,6 +1,18 @@
 # IntelliDesk 架构设计文档
 
-> Phase 0 设计输出，随项目推进持续更新。
+> 本文下方保留早期 Phase 0 设计草案（包含当时的候选版本、规划模块和概念 ER），不能把每一项规划视为当前已实现功能。当前实施依据为源码、迁移与 [Java 后端增强报告](backend/JAVA_BACKEND_ENHANCEMENT_REPORT.md)，实际依赖版本以 backend/pom.xml、frontend/package-lock.json 和 deploy/docker-compose.yml 为准。
+
+## 当前实现概要（2026-10-05）
+
+IntelliDesk 是 Java / Spring Boot 模块化单体，Vue 经 Nginx 调用后端。Spring Security/JWT、数据库 RBAC 与 workspace membership 共同授权；API Key 另受 scope 限制。业务持久化使用 PostgreSQL 与 MyBatis-Plus，不是 JPA/MySQL。
+
+文档上传至 MinIO 后创建持久化 ingestion task，经 RabbitMQ 或 dispatcher 执行。短事务协调状态 claim、Chunk 保存和后续 retrieval task 创建；解析与外部 I/O 位于事务外。检索任务独立完成 Embedding、pgvector 与 Elasticsearch 索引，因此 ingestion COMPLETED 不等于检索 READY。
+
+重试使用既有 TTL 队列、数据库 deadline 和 DLQ。成功提交后的重复消息可跳过处理；提交前故障可能再次解析。status/attempt CAS、document version CAS、唯一约束和事务保护提交边界，不承诺 exactly-once。
+
+Redis 新增部分仅为授权后的 KB metadata Cache Aside：TTL 300–360 秒、DB 提交后失效、故障回退 DB；不缓存最终权限。TraceId 关联 HTTP、持久化 task 与 MQ，消费结束恢复 MDC。V6 保存 task trace，V7 增加 status/lease_until 索引；EXPLAIN 依据见 [数据库分析](backend/DATABASE_ACCESS_REVIEW.md)。现有 RAG / Agent 流程没有因本轮 Java 增强而改变。
+
+以下历史设计草案不是新的交付范围或测试结论。
 
 ---
 

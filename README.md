@@ -1,194 +1,157 @@
 # IntelliDesk
 
-> 企业知识库RAG与Tool-Calling Agent平台  
->  Spring Boot · Spring AI · pgvector · Elasticsearch · Vue3 · Ollama
+**Java / Spring Boot 企业知识库与智能问答平台**
 
-IntelliDesk 是一个可本地运行的企业知识库、RAG 对话与工具调用 Agent 平台。项目重点不是功能数量，而是把异步文档处理、混合检索、安全边界、流式交互、失败恢复和可审计性能证据串成一套完整工程链路。前端采用中文优先的企业级 Knowledge Copilot 视觉语言，覆盖知识库管理、文档分块、可追溯问答、工具调用轨迹与 API Key 管理。
+IntelliDesk 是一个模块化单体项目，围绕工作空间授权、异步文档处理和可追溯知识问答，实践 Java 后端的安全、事务、消息重试、缓存与并发状态保护。Vue 前端提供知识库管理、文档状态、流式对话、引用来源和 API Key 管理。
 
-## 核心能力
+## 系统架构
 
-- 工作空间与 RBAC：JWT access token、Redis refresh token rotation、owner/member 权限和跨工作空间 IDOR 防护。
-- 文档摄入：TXT、Markdown、PDF 上传至 MinIO，经 RabbitMQ durable task 异步解析、分块、向量化并写入 PostgreSQL/pgvector 与 Elasticsearch。
-- RAG：query rewrite、BM25、vector、RRF hybrid、可选 reranker、上下文构建、citation validation 与 SSE token streaming。
-- Agent：有界 step/timeout、tool registry、参数校验、隔离执行、结果脱敏、调用轨迹和取消竞态保护。
-- 工程能力：Redis Lua 原子限流、所有权 token 分布式锁、API key、Flyway、Docker Compose、Nginx、Prometheus 与 Grafana。
-- 证据链：冻结语料与参数、raw-only 指标重算、immutable run-set、strict acceptance、失败注入矩阵和 secret scan。
+~~~text
+Vue 3 → Nginx → Spring Boot
+                  ├─ Spring Security / JWT / RBAC / workspace authorization
+                  ├─ PostgreSQL + MyBatis-Plus：业务数据、持久化任务、pgvector
+                  ├─ RabbitMQ：文档任务、延迟重试、DLQ
+                  ├─ Redis：refresh token、限流、知识库元数据 Cache Aside
+                  ├─ MinIO：文档对象
+                  ├─ Elasticsearch：BM25 检索索引
+                  └─ Spring AI：聊天模型、Embedding 与现有 RAG / Agent
+~~~
 
-## 架构与数据流
+详见[架构说明](docs/ARCHITECTURE.md)与[Java 后端增强报告](docs/backend/JAVA_BACKEND_ENHANCEMENT_REPORT.md)。数据库、消息队列、对象存储是独立基础设施，不把该项目描述为微服务系统。
 
-```text
-Browser
-  -> Nginx :80
-     -> Vue 3 SPA
-     -> /api -> Spring Boot
-                  |-> PostgreSQL + pgvector
-                  |-> Redis
-                  |-> RabbitMQ -> document/retrieval consumers
-                  |-> MinIO
-                  |-> Elasticsearch
-                  |-> OpenAI-compatible chat/embedding/rerank providers
-                  `-> Actuator -> Prometheus -> Grafana
-```
+## 核心 Java 后端能力
 
-核心链路：
+| 能力 | 实际实现 |
+| --- | --- |
+| 认证与授权 | Spring Security、JWT、BCrypt、数据库 RBAC、工作空间成员/owner 校验、API Key scope |
+| 异步任务 | 持久化 DocumentTask、手动 ACK、publisher confirm/return、延迟重试与 DLQ |
+| 状态与事务 | 状态机、task status/attempt CAS、document version CAS、失败竞争回滚 |
+| 缓存 | 小型 KB metadata Cache Aside、授权先于缓存读取、提交后失效、Redis 故障回退 |
+| 数据访问 | PostgreSQL、MyBatis-Plus、唯一约束、租约扫描联合索引与真实 EXPLAIN |
+| 排错 | HTTP → 持久化 task → MQ TraceId/MDC、安全的统一响应与失败摘要 |
 
-```text
-Document: Upload -> MinIO -> durable DB task -> RabbitMQ -> parse -> chunk
-          -> embedding -> pgvector + Elasticsearch -> READY
+## AI / RAG 能力
 
-RAG: Query -> rewrite -> BM25 + vector -> RRF -> optional rerank
-     -> prompt/context -> LLM -> citation validation -> SSE
+- Markdown、TXT、PDF 解析分块；Embedding 写入 pgvector，关键词索引写入 Elasticsearch。
+- Vector、BM25、Hybrid + RRF；可选 Reranker，不保证排序一定改善。
+- Query Rewrite、上下文构建、引用校验、SSE 增量回答。
+- 有界 Agent 工具调用、参数校验、结果脱敏和可查看的工具轨迹。
 
-Agent: Query -> bounded loop -> tool selection -> validation/execution
-       -> sanitized observation -> final answer -> SSE
-```
+现有[受控 RAG Evaluation](docs/evaluation/report.md)使用 **SYNTHETIC / FICTIONAL** 语料：14 份文档、42 个实际 Chunk、69 个问题，其中 60 个合格问题参与质量指标，9 个无相关证据问题单列。在这份受控语料上，**HYBRID_RERANK 低于 HYBRID**；BM25 的 chunk MRR 也高于 Hybrid，因此不能宣称 Hybrid + RRF 普遍更优。检索相关性指标不等于答案正确率。
 
-详细设计见 [Architecture](docs/ARCHITECTURE.md)。
-
-## 安全与可靠性
-
-- 密码使用 BCrypt；API key 只在创建时返回一次完整值，数据库以唯一 prefix 定位候选并用 BCrypt 校验 secret。
-- 前端仅在内存保存 access token；refresh token 使用 HttpOnly cookie，并执行 rotation/revocation。
-- API key、workspace、knowledge base、document、conversation 与 Agent tools 都执行服务端作用域校验。
-- 文档与检索任务使用状态守卫、generation、lease 和 fence token；重复消息、旧 worker 与非 owner lock release 不能覆盖当前状态。
-- Provider、tool、SSE、RabbitMQ、Redis 和 evidence failure 都有 fail-closed 或明确记录的既有 fail-open 合同。
-- 日志和证据不保存 bearer token、refresh token、完整 API key 或 provider secret。
+项目完成过受控 RAG Evaluation、Benchmark 和 Failure Testing；[代表性 Benchmark 报告](docs/benchmark/report.md)保留测量范围和限制。本次 Java 增强没有重新运行模型评测，也没有产生新的性能或答案质量结论。不同历史语料与运行口径不得混合比较。
 
 ## 技术栈
 
 | 层级 | 技术 |
-|---|---|
-| Backend | Java 21, Spring Boot 3.5.8, Spring AI 1.1.2, MyBatis-Plus, Flyway |
-| Data | PostgreSQL 16 + pgvector, Redis 7, Elasticsearch 8, RabbitMQ 3.13, MinIO |
-| Frontend | Vue 3, TypeScript, Vite, Pinia, Element Plus |
-| Delivery | Docker Compose, Nginx, Prometheus, Grafana |
-| Verification | JUnit 5, Testcontainers, Vitest, k6, Python unittest |
+| --- | --- |
+| 后端 | Java 21、Spring Boot 3.5.8、Spring Security、MyBatis-Plus 3.5.9、JJWT 0.12.6 |
+| AI 接入 | Spring AI 1.1.2、可配置的聊天与 Embedding Provider |
+| 基础设施 | PostgreSQL 16 + pgvector、Redis、RabbitMQ、MinIO、Elasticsearch；既有 Flyway 迁移 |
+| 前端 | Vue 3、TypeScript、Vite、Pinia、Element Plus |
+| 验证与部署 | JUnit 5、Mockito、MockMvc、Testcontainers、Vitest、k6、Docker Compose、Nginx |
 
-## 本地启动
+## 文档处理流程
 
-要求：Docker Desktop / Docker Engine、Docker Compose，以及可用的本地 provider 配置。复制模板并只在本机填写运行时秘密：
+~~~text
+上传并授权 → MinIO → 持久化 PENDING 任务 → MQ / dispatcher
+    → 原子 claim PROCESSING → 事务外解析与分块
+    → 同一 DB 事务保存 Chunk、SUCCEEDED / COMPLETED 和 retrieval task
+    → 独立检索任务完成 Embedding / Elasticsearch 索引
+~~~
 
-### Windows PowerShell
+解析分块完成不等于检索索引已 READY。外部存储、模型与索引调用不放入长数据库事务；失败通过已有持久化任务和补偿流程恢复。
 
-```powershell
-if (-not (Test-Path .env)) {
-    Copy-Item .env.example .env
-}
+## 安全模型
 
+JWT 校验签名、到期时间、access 类型和必要身份字段；请求的角色权限从数据库读取，撤权不依赖等待旧 JWT 到期。全局 ADMIN/MEMBER 权限再叠加 workspace member/owner 检查；API Key 同时受 scope 约束。
+
+密码使用 BCrypt；完整 API Key 仅创建时返回一次，后续展示 metadata。LLM 不参与授权。真实凭证只放本地环境配置，不进入 Git、日志示例或截图。
+
+## RabbitMQ：重试、DLQ 与幂等
+
+- 持久化 exchange/queue，mandatory 发布、confirm/return 检查，consumer 手动 ACK。
+- 默认重试队列 TTL 为 30 秒；默认 3 次是总尝试数，不是额外重试 3 次。
+- 临时失败进入 RETRY_WAIT；耗尽后 DEAD，保留 DLQ 诊断，不自动无界重放。
+- 消息身份与数据库 taskId、documentId、messageId 一致后才处理；状态/attempt 条件更新和 document version CAS 防止竞争提交。
+
+**成功提交后的重复投递可避免再次处理；提交前故障仍可能重新执行。** 数据库唯一约束、事务和 attempt fence 保护持久化结果，不承诺端到端 exactly-once 或零消息丢失。
+
+## Redis Cache Aside
+
+仅缓存小型知识库元数据，key 包含 workspaceId 与 kbId，内容上限 8192 字符，TTL 为 300–360 秒。每次先查数据库授权，再读取缓存。MISS 回源；DB 写入提交后失效；未提交事务不填充缓存；Redis 异常回退数据库。
+
+缓存是有界最终一致性，不缓存最终权限判断、正文、模型答案或一次性凭证。并发填充、失效失败仍可能造成短暂陈旧数据，不承诺强一致。
+
+## 数据库、事务与索引
+
+短事务协调 task/document claim、Chunk 保存与后续任务创建；状态竞争失败会回滚关联更新。任务 claim 校验 status + attempt_count，文档保留 version CAS，防止旧执行者跨重试周期提交。
+
+新增租约索引为 document_index_task(status, lease_until)。[数据库分析](docs/backend/DATABASE_ACCESS_REVIEW.md)包含隔离 PostgreSQL 上 20,000 条合成任务的真实 EXPLAIN：该索引支持状态等值、租约范围与排序，但增加写入维护成本；单次计划时延不是吞吐提升承诺。既有唯一约束和适用的分页索引继续保留。
+
+## TraceId 与错误处理
+
+入口限制 TraceId 字符和长度，将其关联到响应、持久化文档任务及 MQ 消费；MDC 同时带 task/document/message 标识，作用域结束恢复线程上下文。GlobalExceptionHandler 与文档失败摘要不直接回显外部异常正文或敏感机器路径。
+
+这不是分布式追踪平台；旧任务没有保存的 originating trace 无法追溯补造。
+
+## 测试与验证
+
+覆盖 JWT/RBAC、工作空间隔离、事务回滚、任务状态保护、MQ 重试/DLQ、缓存授权和真实 Redis/PostgreSQL/RabbitMQ 集成行为。本轮新增 53 项 Java 测试通过；前端 19 个测试文件、95 项测试通过；3 项新增脚本离线检查通过。
+
+**广范围后端回归并非全绿**：既有历史 HTTP capture fixture 缺失产生 ERROR，部分 HTTP 集成测试因 fixture 缺失 SKIP。范围、命令、准确计数、router 稳定性复验与构建结果见[完整验证说明](docs/backend/JAVA_BACKEND_ENHANCEMENT_REPORT.md)。不将跳过测试的 package 称为测试通过。
+
+~~~powershell
+# 后端：部分集成测试要求 Docker；默认测试还可能依赖本地历史归档/fixture
+mvn -f backend/pom.xml test
+
+# 前端
+cd frontend
+npm ci
+npm test -- --run
+npm run build
+~~~
+
+[非 LLM 性能准备](docs/backend/NON_LLM_PERFORMANCE_PREPARATION.md)仅包含受限只读脚本与离线测试，本轮没有执行新的压测或正式 Benchmark。
+
+## 本地开发
+
+准备 Docker Compose 和实际可用的聊天、Embedding Provider。只在尚无 .env 时复制模板，随后按本机服务填写；不要用模板覆盖现有真实配置。
+
+~~~powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
-docker compose --env-file .env -f deploy/docker-compose.yml ps
-```
+~~~
 
-### Linux / macOS
+Web 默认位于 http://localhost/，backend 在 Compose 内通过 Nginx 访问。环境项见[配置模板](.env.example)；模型必须由使用者根据实际 Provider 配置，不以“本机装过某模型”替代项目配置。
 
-```bash
-[ -f .env ] || cp .env.example .env
+前后端独立开发需要 Java 21、Maven、Node.js 与对应依赖服务。先将自己的环境配置安全注入后端进程，再运行：
 
-docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
-docker compose --env-file .env -f deploy/docker-compose.yml ps
-```
+~~~powershell
+mvn -f backend/pom.xml spring-boot:run
+# 另一个终端，在 frontend 目录
+npm ci
+npm run dev
+~~~
 
-应用入口：
+Vite 的 /api 代理默认指向 localhost:8080。生产部署仍需独立完成凭证、TLS、数据库迁移、网络隔离与实际工作负载验证。
 
-- Web：`http://localhost/`
-- Prometheus：`http://localhost:9090/`
-- Grafana：`http://localhost:3000/`
+## 真实界面
 
-后端不映射 host port；浏览器 API 与 SSE 都经 Nginx `/api` 代理。不要提交 `.env`。
+![知识库与文档管理](docs/demo/screenshots/knowledge-base-documents.png)
 
-## 可重复 Demo 数据
+![流式问答与引用](docs/demo/screenshots/rag-conversation-citations.png)
 
-服务 healthy 后，为每次演示选择一个新的安全 RunId。脚本只调用正式 public APIs，创建隔离用户、工作空间、知识库、已索引文档、RAG conversation 和只读 API-key metadata；输出 manifest 不含密码、token 或完整 API key。
+更多既有截图：[文档 Chunk](docs/demo/screenshots/document-detail-chunks.png)、[API Key metadata](docs/demo/screenshots/api-key-metadata.png)、[Agent 工具轨迹](docs/demo/screenshots/agent-tool-trace.png)。
 
-Demo seed 脚本使用 PowerShell 7（`pwsh`），Windows、Linux 和 macOS 均可运行。
+## 已知边界
 
-### Windows PowerShell
-
-```powershell
-$env:INTELLIDESK_DEMO_PASSWORD = '<choose-a-local-demo-password>'
-pwsh ./deploy/demo-seed.ps1 -RunId portfolio-001
-Remove-Item Env:INTELLIDESK_DEMO_PASSWORD
-```
-
-### Linux / macOS
-
-```bash
-export INTELLIDESK_DEMO_PASSWORD='<choose-a-local-demo-password>'
-pwsh ./deploy/demo-seed.ps1 -RunId portfolio-001
-unset INTELLIDESK_DEMO_PASSWORD
-```
-
-相同 RunId 再次执行会 fail closed；换一个 RunId 可得到另一套独立数据。受控 fixture 位于 [demo-knowledge.txt](docs/demo/demo-knowledge.txt)。
-
-## 项目截图
-
-以下图片来自当前真实本地 UI。截图仅展示既有演示数据，未包含 token、密码、Authorization、cookie 或完整 API Key；API Key 页面只显示不可用于认证的 prefix。
-
-### 智能对话与工具调用轨迹
-
-RAG 与 Agent 共用统一的对话工作区，展示知识库范围、用户/AI 消息层级、检索工具执行状态和现代 Chat Composer。回答通过真实 SSE 连接增量呈现。
-
-![智能对话与工具调用轨迹](docs/demo/screenshots/rag-conversation-citations.png)
-
-![Agent工具调用轨迹](docs/demo/screenshots/agent-tool-trace.png)
-
-### 知识库与文档管理
-
-知识库详情集中展示分块策略、文档处理状态与主要操作，弱化次要 metadata。
-
-![知识库与已完成文档](docs/demo/screenshots/knowledge-base-documents.png)
-
-### 文档详情与 Chunk
-
-文档详情保留解析状态、文件 metadata、分块策略以及实际用于检索的 Chunk 内容。
-
-![文档详情与 Chunk](docs/demo/screenshots/document-detail-chunks.png)
-
-### API Key 管理
-
-开发者 Console 风格的凭证列表只展示名称、prefix、scope、状态和使用时间，完整 secret 仍只在创建瞬间返回一次。
-
-![API Key 元数据管理](docs/demo/screenshots/api-key-metadata.png)
-
-## 验证状态
-
-公开版代表性验证汇总：
-
-| Surface | Result |
-|---|---|
-| Backend | 973 tests, 0 failures, 0 errors, BUILD SUCCESS; 22 conditional skips |
-| Provider HTTP adapter | localhost deterministic fixture 8/8 PASS, no skip |
-| Frontend | 18 files / 92 tests PASS; production build PASS |
-| Benchmark tooling | 181/181 PASS |
-| Failure matrix | 7/7 areas closed; BLOCKER=0 / MUST_FIX=0 / TEST_GAP=0 |
-
-这些是受控本地验证结果，不是生产 SLA。
-
-## Evaluation、Benchmark 与 Failure Evidence
-
-- [RAG Evaluation Report](docs/evaluation/report.md)：14 个受控合成文档、42 chunks、69 个 final questions；真实本地 embedding/BM25/reranker 路径。`HYBRID_RERANK` 在当前受控语料上的结果低于 `HYBRID`，不宣称 reranker 带来提升。
-- [Benchmark Report](docs/benchmark/report.md)：7/7 mandatory scenarios strict accepted，1,691,143 个 authoritative samples/executions，0 authoritative errors；failed/diagnostic run-set 不进入结果。
-- Failure Testing：覆盖 provider、SSE、Rabbit/document/retrieval、Redis/lock、auth/IDOR、Agent 与 evidence fail-closed 路径；公开仓库保留相关源码和测试，不包含大规模执行历史。
-
-限制：benchmark 为 controlled-local baseline；RAG Pipeline、RAG Completion 与 Agent Tool Flow 的 deterministic provider-boundary stub 只测系统 pipeline；Document Processing 为 20 executions/run，其 p99 不是高置信度生产尾延迟；完整限制以上述报告与说明为准。
+- 当前证据不支持生产 SLA、高可用或未经测量的 QPS/P95 指标；本项目不承诺这些能力。
+- 重试不等于只执行一次，数据库事务也不覆盖外部存储和索引。
+- 元数据缓存可能短暂陈旧；深分页和前置通配符查询仍有成本。
+- RAG 可能检索错源或生成失败；引用存在不代表答案正确，Reranker 不能保证提升效果。
+- 受控合成语料不是实际企业数据或真实业务效果证明。
+- 缺失历史 fixture 的测试限制仍保留；前端构建还有 bundle 大小提示。
+- 此次提交仅包含 Java 增强、测试修复及公开说明，不发布本地历史模型实验、raw provider 输出或内部归档。
 
 完整验证与历史证据保留于本地归档，公开仓库仅保留源码、方法说明与代表性结果。
-
-## 项目结构
-
-```text
-IntelliDesk/
-├── backend/                 # Spring Boot application and tests
-├── frontend/                # Vue application and Vitest suites
-├── deploy/                  # Compose, Nginx, observability, E2E/demo scripts
-├── scripts/benchmark/       # Freeze, launcher, finalizer, strict acceptance
-├── scripts/evaluation/      # Corpus freeze and baseline verification
-├── docs/evaluation/report.md # Representative RAG evaluation result
-├── docs/benchmark/report.md # Representative benchmark result
-├── docs/demo/               # Demo fixture and real UI screenshots
-└── docs/ARCHITECTURE.md      # Current architecture and security design
-```
-
-## 当前状态与边界
-
-本公开版本对应已完成的 Phase 7 与 Phase 8 工程快照；大规模 raw、run-set、manifest 和历史评审记录未收入公开仓库。
