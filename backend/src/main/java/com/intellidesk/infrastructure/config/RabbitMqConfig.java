@@ -38,6 +38,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public DirectExchange retryExchange() {
+        return ExchangeBuilder.directExchange(rabbitMqProperties.getRetryExchange()).durable(true).build();
+    }
+
+    @Bean
     public Queue documentQueue() {
         return QueueBuilder.durable(rabbitMqProperties.getDocumentQueue())
                 .withArgument("x-dead-letter-exchange", rabbitMqProperties.getDeadLetterExchange())
@@ -69,7 +74,7 @@ public class RabbitMqConfig {
     @Bean
     public Binding retryBinding() {
         return BindingBuilder.bind(retryQueue())
-                .to(deadLetterExchange())
+                .to(retryExchange())
                 .with(rabbitMqProperties.getRetryRoutingKey());
     }
 

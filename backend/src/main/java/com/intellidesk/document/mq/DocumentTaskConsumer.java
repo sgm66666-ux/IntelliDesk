@@ -20,6 +20,9 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Objects;
+import com.intellidesk.common.TraceContext;
+import org.slf4j.MDC;
 
 @Slf4j
 @Component
@@ -59,33 +62,49 @@ public class DocumentTaskConsumer {
                 return;
             }
         } catch (Exception e) {
-            log.warn("Failed to deserialize message, nacking to DLQ", e);
+            log.warn("Failed to deserialize message, nacking to DLQ: {}", e.getClass().getSimpleName());
             channel.basicNack(deliveryTag, false, false);
             return;
         }
 
-        log.info("Processing message: taskId={}, documentId={}, traceId={}",
-                processMessage.getTaskId(), processMessage.getDocumentId(), processMessage.getTraceId());
-
-        try {
-            handleMessage(processMessage, channel, deliveryTag);
-        } catch (Exception e) {
-            log.error("Unexpected error processing message taskId={}", processMessage.getTaskId(), e);
-            // If we can't even handle the error, nack without requeue
+        try (TraceContext.Scope ignored = TraceContext.open(processMessage.getTraceId(),
+                processMessage.getTaskId(), processMessage.getMessageId())) {
+            MDC.put("documentId", String.valueOf(processMessage.getDocumentId()));
+            log.info("Processing message: taskId={}, documentId={}, messageId={}",
+                    processMessage.getTaskId(), processMessage.getDocumentId(), processMessage.getMessageId());
             try {
-                channel.basicNack(deliveryTag, false, false);
-            } catch (IOException ex) {
-                log.error("Failed to nack message", ex);
+                handleMessage(processMessage, channel, deliveryTag);
+            } catch (Exception e) {
+                log.error("Unexpected consumer error: taskId={}, type={}", processMessage.getTaskId(), e.getClass().getSimpleName());
+                // Keep the trace scope active until handling and nack have finished.
+                try {
+                    channel.basicNack(deliveryTag, false, false);
+                } catch (IOException ex) {
+                    log.error("Failed to nack message: {}", ex.getClass().getSimpleName());
+                }
             }
         }
     }
 
     private void handleMessage(DocumentProcessMessage message, Channel channel, long deliveryTag) throws IOException {
+        if (message.getSchemaVersion() != 1 || message.getTaskId() == null
+                || message.getDocumentId() == null || message.getMessageId() == null) {
+            channel.basicNack(deliveryTag, false, false);
+            return;
+        }
         // Load task
         DocumentIndexTask task = taskMapper.selectById(message.getTaskId());
         if (task == null) {
             log.info("Task {} not found, stale delivery, ACK", message.getTaskId());
             channel.basicAck(deliveryTag, false);
+            return;
+        }
+
+        // Never process a payload whose identity disagrees with the durable task.
+        if (!Objects.equals(task.getDocumentId(), message.getDocumentId())
+                || !Objects.equals(task.getMessageId(), message.getMessageId())) {
+            log.warn("Task {} payload identity mismatch, nack to DLQ", task.getId());
+            channel.basicNack(deliveryTag, false, false);
             return;
         }
 
@@ -134,9 +153,7 @@ public class DocumentTaskConsumer {
         }
 
         // Check allowed states for claim
-        boolean claimable = DocumentTaskStatus.PENDING.getValue().equals(taskStatus)
-                || DocumentTaskStatus.QUEUED.getValue().equals(taskStatus)
-                || DocumentTaskStatus.RETRY_WAIT.getValue().equals(taskStatus);
+        boolean claimable = DocumentTaskStatus.claimableValues().contains(taskStatus);
 
         if (!claimable) {
             log.warn("Task {} in unexpected state {} for claim, ACK", task.getId(), taskStatus);
@@ -169,7 +186,7 @@ public class DocumentTaskConsumer {
         try {
             processingService.process(task, document, knowledgeBase, fenceAttempt);
         } catch (Exception e) {
-            log.error("Processing failed for task {}: {}", task.getId(), e.getMessage(), e);
+            log.error("Processing failed for task {}: type={}", task.getId(), e.getClass().getSimpleName());
             // DocumentProcessingService already handles marking failures internally
         }
 

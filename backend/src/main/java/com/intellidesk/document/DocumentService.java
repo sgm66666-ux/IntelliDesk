@@ -390,7 +390,7 @@ public class DocumentService {
 
         DocumentIndexTask task = transactionTemplate.execute(status -> {
             // Clear failure fields and move to PENDING
-            documentMapper.update(null,
+            int reset = documentMapper.update(null,
                     new UpdateWrapper<KnowledgeDocument>()
                             .eq("id", documentId)
                             .eq("status", DocumentStatus.FAILED.getValue())
@@ -399,6 +399,7 @@ public class DocumentService {
                             .set("failure_message", null)
                             .set("completed_at", null)
                             .setSql("version = version + 1"));
+            if (reset == 0) throw new BusinessException(ErrorCode.DOCUMENT_RETRY_NOT_ALLOWED);
 
             // Create new task
             return documentTaskService.createPendingTask(documentId, userId);
@@ -618,7 +619,7 @@ public class DocumentService {
                 .chunkOverlap(document.getChunkOverlap())
                 .parserMetadata(fromJson(document.getParserMetadata()))
                 .failureCode(document.getFailureCode())
-                .failureMessage(document.getFailureMessage())
+                .failureMessage(document.getFailureMessage() == null ? null : DocumentFailureMessages.describe(document.getFailureCode()))
                 .latestTask(latestTask)
                 .createdBy(document.getCreatedBy())
                 .completedAt(document.getCompletedAt())
@@ -634,7 +635,7 @@ public class DocumentService {
                 .attemptCount(task.getAttemptCount())
                 .maxAttempts(task.getMaxAttempts())
                 .lastErrorCode(task.getLastErrorCode())
-                .lastErrorMessage(task.getLastErrorMessage())
+                .lastErrorMessage(task.getLastErrorMessage() == null ? null : DocumentFailureMessages.describe(task.getLastErrorCode()))
                 .createdAt(task.getCreatedAt())
                 .startedAt(task.getStartedAt())
                 .completedAt(task.getCompletedAt())

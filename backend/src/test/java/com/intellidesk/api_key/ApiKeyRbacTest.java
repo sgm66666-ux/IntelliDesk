@@ -49,6 +49,45 @@ class ApiKeyRbacTest {
     private String memberAccessToken;
     private Long workspaceId;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired
+    private com.intellidesk.auth.JwtTokenProvider jwt;
+
+    @Test
+    void anonymousKnowledgeReadReturns401() throws Exception {
+        mockMvc.perform(get("/api/workspaces/{wid}/knowledge-bases",workspaceId))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void authorizedOwnerCanCreateAndReadKnowledgeBase() throws Exception {
+        mockMvc.perform(post("/api/workspaces/{wid}/knowledge-bases",workspaceId)
+                        .header("Authorization","Bearer "+ownerAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Synthetic RBAC knowledge\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/workspaces/{wid}/knowledge-bases",workspaceId)
+                        .header("Authorization","Bearer "+ownerAccessToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void authenticatedNonMemberCannotReadOtherWorkspace() throws Exception {
+        mockMvc.perform(get("/api/workspaces/{wid}/knowledge-bases",workspaceId)
+                        .header("Authorization","Bearer "+memberAccessToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void removedDatabaseRoleTakesEffectOnExistingJwt() throws Exception {
+        Long userId = jwt.getUserIdFromToken(ownerAccessToken);
+        jdbc.update("DELETE FROM sys_user_role WHERE user_id = ?",userId);
+        mockMvc.perform(get("/api/workspaces/{wid}/knowledge-bases",workspaceId)
+                        .header("Authorization","Bearer "+ownerAccessToken))
+                .andExpect(status().isForbidden());
+    }
+
     private String uniqueUsername() {
         return "apikey_rbac_" + System.currentTimeMillis() + "_" + Thread.currentThread().threadId();
     }

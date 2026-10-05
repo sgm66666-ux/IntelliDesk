@@ -16,22 +16,22 @@ import java.util.UUID;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class TraceIdFilter extends OncePerRequestFilter {
+    private static final String ATTRIBUTE = TraceIdFilter.class.getName() + ".traceId";
+
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String traceId = request.getHeader("X-Trace-Id");
-        if (traceId == null || traceId.isEmpty()) {
-            traceId = UUID.randomUUID().toString().replace("-", "");
-        }
-        TraceContext.setTraceId(traceId);
-        MDC.put("traceId", traceId);
+        String traceId = (String) request.getAttribute(ATTRIBUTE);
+        if (traceId == null) traceId = TraceContext.normalize(request.getHeader("X-Trace-Id"));
+        request.setAttribute(ATTRIBUTE, traceId);
         response.setHeader("X-Trace-Id", traceId);
-        try {
+        try (TraceContext.Scope ignored = TraceContext.open(traceId, null, null)) {
             filterChain.doFilter(request, response);
-        } finally {
-            TraceContext.clear();
-            MDC.clear();
         }
     }
 }

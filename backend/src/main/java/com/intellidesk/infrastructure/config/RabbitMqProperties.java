@@ -26,6 +26,10 @@ public class RabbitMqProperties {
 
     @PostConstruct
     public void validate() {
+        for (String value : new String[]{documentExchange, documentQueue, documentRoutingKey,
+                retryExchange, retryQueue, retryRoutingKey, deadLetterExchange, deadLetterQueue, deadLetterRoutingKey}) {
+            if (!StringUtils.hasText(value)) throw new IllegalStateException("RabbitMQ topology names must not be empty");
+        }
         if (!StringUtils.hasText(documentExchange)) {
             throw new IllegalStateException("intellidesk.rabbitmq.document-exchange must not be empty");
         }

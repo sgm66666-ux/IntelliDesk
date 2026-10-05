@@ -3,6 +3,10 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import { createMemoryHistory } from 'vue-router';
 import { createAppRouter } from '@/router';
+// Load the real views before timing guard assertions. Cold Element Plus/Vue
+// module transformation is not authentication work; keep real route resolution.
+import '@/views/LoginPage.vue';
+import '@/views/WorkspaceListPage.vue';
 
 const authApiMocks = vi.hoisted(() => ({
   login: vi.fn(),

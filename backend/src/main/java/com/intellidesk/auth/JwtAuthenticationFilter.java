@@ -39,11 +39,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String token = extractToken(request);
-        if (token != null && jwtTokenProvider.validateToken(token)) {
-            Long userId = jwtTokenProvider.getUserIdFromToken(token);
+        JwtTokenProvider.AccessIdentity identity = token == null ? null : jwtTokenProvider.parseAccessToken(token);
+        if (identity != null) {
+            Long userId = identity.userId();
             User user = userService.getById(userId);
             if (user != null && user.getStatus() != null && user.getStatus() == 1) {
-                String username = jwtTokenProvider.getUsernameFromToken(token);
+                String username = identity.username();
                 List<String> roleCodes = userService.getRoleCodes(userId);
                 List<String> permissionCodes = userService.getPermissionCodes(userId);
 

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import com.intellidesk.common.TraceContext;
 
 @Data
 @Builder
@@ -27,7 +28,7 @@ public class DocumentProcessMessage implements Serializable {
                 .documentId(documentId)
                 .messageId(messageId)
                 .schemaVersion(1)
-                .traceId(java.util.UUID.randomUUID().toString().substring(0, 8))
+                .traceId(TraceContext.normalize(TraceContext.peekTraceId()))
                 .build();
     }
 }

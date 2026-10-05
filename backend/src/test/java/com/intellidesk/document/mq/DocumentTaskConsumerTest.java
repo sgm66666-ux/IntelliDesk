@@ -34,6 +34,7 @@ class DocumentTaskConsumerTest {
     private static final long DELIVERY_TAG = 4242L;
     private static final long TASK_ID = 100L;
     private static final long DOCUMENT_ID = 200L;
+    private static final String MESSAGE_ID = UUID.randomUUID().toString();
 
     @Mock
     private DocumentIndexTaskMapper taskMapper;
@@ -185,6 +186,55 @@ class DocumentTaskConsumerTest {
         verify(publisher, never()).publishRetry(any());
     }
 
+    @Test
+    void wrongMessageIdentityCannotClaimOrLoadDocument() throws Exception {
+        Message message = validMessage();
+        DocumentIndexTask task = task(DocumentTaskStatus.PENDING.getValue());
+        task.setMessageId(UUID.randomUUID().toString());
+        when(taskMapper.selectById(TASK_ID)).thenReturn(task);
+        consumer.onMessage(message, channel);
+        verify(channel).basicNack(DELIVERY_TAG, false, false);
+        verify(documentMapper, never()).selectById(any());
+        verify(processingService, never()).claimTask(any(), any());
+    }
+
+    @Test
+    void wrongDocumentIdentityCannotClaim() throws Exception {
+        Message message = validMessage();
+        DocumentIndexTask task = task(DocumentTaskStatus.PENDING.getValue());
+        task.setDocumentId(999L);
+        when(taskMapper.selectById(TASK_ID)).thenReturn(task);
+        consumer.onMessage(message, channel);
+        verify(channel).basicNack(DELIVERY_TAG, false, false);
+        verify(processingService, never()).claimTask(any(), any());
+    }
+
+    @Test
+    void unsupportedSchemaNeverLoadsTask() throws Exception {
+        Message message = rawMessage();
+        DocumentProcessMessage payload = DocumentProcessMessage.create(TASK_ID, DOCUMENT_ID, MESSAGE_ID);
+        payload.setSchemaVersion(99);
+        when(messageConverter.fromMessage(message)).thenReturn(payload);
+        consumer.onMessage(message, channel);
+        verify(channel).basicNack(DELIVERY_TAG, false, false);
+        verify(taskMapper, never()).selectById(any());
+    }
+
+    @Test
+    void redeliveryAfterCommitBeforeAckDoesNotParseAgain() throws Exception {
+        Message message = validMessage();
+        DocumentIndexTask succeeded = task(DocumentTaskStatus.SUCCEEDED.getValue());
+        when(taskMapper.selectById(TASK_ID)).thenReturn(succeeded);
+        when(documentMapper.selectById(DOCUMENT_ID)).thenReturn(document());
+        org.mockito.Mockito.doThrow(new java.io.IOException("synthetic ack interruption"))
+                .doNothing().when(channel).basicAck(DELIVERY_TAG, false);
+        consumer.onMessage(message, channel);
+        consumer.onMessage(message, channel);
+        verify(channel, org.mockito.Mockito.times(2)).basicAck(DELIVERY_TAG, false);
+        verify(processingService, never()).claimTask(any(), any());
+        verify(processingService, never()).process(any(), any(), any(), any(Integer.class));
+    }
+
     private Message rawMessage() {
         MessageProperties properties = new MessageProperties();
         properties.setDeliveryTag(DELIVERY_TAG);
@@ -194,7 +244,7 @@ class DocumentTaskConsumerTest {
     private Message validMessage() {
         Message message = rawMessage();
         DocumentProcessMessage payload = DocumentProcessMessage.create(
-                TASK_ID, DOCUMENT_ID, UUID.randomUUID().toString());
+                TASK_ID, DOCUMENT_ID, MESSAGE_ID);
         when(messageConverter.fromMessage(message)).thenReturn(payload);
         return message;
     }
@@ -203,6 +253,7 @@ class DocumentTaskConsumerTest {
         DocumentIndexTask task = new DocumentIndexTask();
         task.setId(TASK_ID);
         task.setDocumentId(DOCUMENT_ID);
+        task.setMessageId(MESSAGE_ID);
         task.setStatus(status);
         task.setAttemptCount(0);
         task.setMaxAttempts(3);

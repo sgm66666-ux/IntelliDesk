@@ -22,13 +22,16 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final DocumentMapper documentMapper;
     private final WorkspaceAuthorizationService workspaceAuthorizationService;
+    private final KnowledgeBaseMetadataCache metadataCache;
 
     public KnowledgeBaseService(KnowledgeBaseMapper knowledgeBaseMapper,
                                 DocumentMapper documentMapper,
-                                WorkspaceAuthorizationService workspaceAuthorizationService) {
+                                WorkspaceAuthorizationService workspaceAuthorizationService,
+                                KnowledgeBaseMetadataCache metadataCache) {
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.documentMapper = documentMapper;
         this.workspaceAuthorizationService = workspaceAuthorizationService;
+        this.metadataCache = metadataCache;
     }
 
     @Transactional
@@ -57,6 +60,7 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NAME_ALREADY_EXISTS);
         }
+        metadataCache.invalidateAfterCommit(workspaceId, kb.getId());
         return kb;
     }
 
@@ -91,10 +95,13 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
 
     public KnowledgeBase getKnowledgeBase(Long workspaceId, Long knowledgeBaseId, Long userId) {
         workspaceAuthorizationService.requireMember(workspaceId, userId);
+        KnowledgeBase cached = metadataCache.get(workspaceId, knowledgeBaseId);
+        if (cached != null) return cached;
         KnowledgeBase kb = getById(knowledgeBaseId);
         if (kb == null || !kb.getWorkspaceId().equals(workspaceId)) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
+        metadataCache.put(kb);
         return kb;
     }
 
@@ -128,6 +135,7 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NAME_ALREADY_EXISTS);
         }
+        metadataCache.invalidateAfterCommit(workspaceId, knowledgeBaseId);
         return kb;
     }
 
@@ -147,6 +155,7 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
         }
 
         removeById(knowledgeBaseId);
+        metadataCache.invalidateAfterCommit(workspaceId, knowledgeBaseId);
     }
 
     private String normalizeName(String name) {

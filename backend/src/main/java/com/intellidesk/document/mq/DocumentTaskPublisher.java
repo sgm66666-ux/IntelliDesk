@@ -29,6 +29,7 @@ public class DocumentTaskPublisher {
     public PublishResult publishMain(DocumentIndexTask task) {
         DocumentProcessMessage message = DocumentProcessMessage.create(
                 task.getId(), task.getDocumentId(), task.getMessageId());
+        if (task.getTraceId() != null) message.setTraceId(task.getTraceId());
         return publish(
                 rabbitMqProperties.getDocumentExchange(),
                 rabbitMqProperties.getDocumentRoutingKey(),
@@ -38,8 +39,9 @@ public class DocumentTaskPublisher {
     public PublishResult publishRetry(DocumentIndexTask task) {
         DocumentProcessMessage message = DocumentProcessMessage.create(
                 task.getId(), task.getDocumentId(), task.getMessageId());
+        if (task.getTraceId() != null) message.setTraceId(task.getTraceId());
         return publish(
-                rabbitMqProperties.getDeadLetterExchange(),
+                rabbitMqProperties.getRetryExchange(),
                 rabbitMqProperties.getRetryRoutingKey(),
                 message);
     }
@@ -47,6 +49,7 @@ public class DocumentTaskPublisher {
     public PublishResult publishDlq(DocumentIndexTask task) {
         DocumentProcessMessage message = DocumentProcessMessage.create(
                 task.getId(), task.getDocumentId(), task.getMessageId());
+        if (task.getTraceId() != null) message.setTraceId(task.getTraceId());
         return publish(
                 rabbitMqProperties.getDeadLetterExchange(),
                 rabbitMqProperties.getDeadLetterRoutingKey(),

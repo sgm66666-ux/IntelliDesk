@@ -21,6 +21,7 @@ public class DocumentIndexTask {
 
     @TableField(typeHandler = UuidTypeHandler.class)
     private String messageId;
+    private String traceId;
 
     private LocalDateTime nextRetryAt;
     private LocalDateTime lastDispatchedAt;

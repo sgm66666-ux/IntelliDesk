@@ -25,6 +25,7 @@ __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
+/local-only/
 *.tmp
 *~
 .DS_Store

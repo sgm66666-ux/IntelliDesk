@@ -98,14 +98,14 @@ public class DocumentProcessingService {
 
             int newAttempt = task.getAttemptCount() + 1;
 
-            // Note: No version CAS on task claim — status check is sufficient for mutual exclusion.
-            // Version check would cause race condition with upload flow's PENDING→QUEUED update.
+            // Status + attempt CAS rejects stale retry-cycle snapshots (ABA).
+            // Full task-version CAS would unnecessarily conflict with PENDING -> QUEUED dispatch.
             int taskUpdated = taskMapper.update(null,
                     new UpdateWrapper<DocumentIndexTask>()
                             .eq("id", task.getId())
-                            .in("status", DocumentTaskStatus.PENDING.getValue(),
-                                    DocumentTaskStatus.QUEUED.getValue(),
-                                    DocumentTaskStatus.RETRY_WAIT.getValue())
+                            .eq("attempt_count", task.getAttemptCount())
+                            .apply("attempt_count < max_attempts")
+                            .in("status", DocumentTaskStatus.claimableValues())
                             .set("status", DocumentTaskStatus.PROCESSING.getValue())
                             .set("attempt_count", newAttempt)
                             .set("lease_until", leaseUntil)
@@ -313,7 +313,7 @@ public class DocumentProcessingService {
             } catch (java.sql.SQLException e) {
                 throw new RuntimeException("Failed to set jsonb value", e);
             }
-            documentMapper.update(null,
+            int docUpd = documentMapper.update(null,
                     new UpdateWrapper<KnowledgeDocument>()
                             .eq("id", freshDoc.getId())
                             .eq("status", DocumentStatus.PROCESSING.getValue())
@@ -321,6 +321,11 @@ public class DocumentProcessingService {
                             .set("parser_metadata", parserMetadataJson)
                             .set("completed_at", now)
                             .setSql("version = version + 1"));
+
+            if (docUpd == 0) {
+                status.setRollbackOnly();
+                return false;
+            }
 
             // Phase 3 durable handoff: create retrieval task in same transaction
             createRetrievalTask(freshDoc.getId(), freshDoc.getKnowledgeBaseId());
@@ -354,7 +359,7 @@ public class DocumentProcessingService {
                             .set("status", DocumentTaskStatus.RETRY_WAIT.getValue())
                             .set("next_retry_at", nextRetryAt)
                             .set("last_error_code", errorCode)
-                            .set("last_error_message", truncate(errorMessage, 512))
+                            .set("last_error_message", DocumentFailureMessages.describe(errorCode))
                             .set("lease_until", null)
                             .setSql("version = version + 1"));
 
@@ -364,12 +369,13 @@ public class DocumentProcessingService {
                 return null;
             }
 
-            documentMapper.update(null,
+            int docUpdated = documentMapper.update(null,
                     new UpdateWrapper<KnowledgeDocument>()
                             .eq("id", document.getId())
                             .eq("status", DocumentStatus.PROCESSING.getValue())
                             .set("status", DocumentStatus.PENDING.getValue())
                             .setSql("version = version + 1"));
+            if (docUpdated == 0) status.setRollbackOnly();
 
             return null;
         });
@@ -387,7 +393,7 @@ public class DocumentProcessingService {
                             .eq("attempt_count", fenceAttempt)
                             .set("status", DocumentTaskStatus.DEAD.getValue())
                             .set("last_error_code", errorCode)
-                            .set("last_error_message", truncate(errorMessage, 512))
+                            .set("last_error_message", DocumentFailureMessages.describe(errorCode))
                             .set("lease_until", null)
                             .set("completed_at", now)
                             .setSql("version = version + 1"));
@@ -398,14 +404,15 @@ public class DocumentProcessingService {
                 return null;
             }
 
-            documentMapper.update(null,
+            int docUpdated = documentMapper.update(null,
                     new UpdateWrapper<KnowledgeDocument>()
                             .eq("id", document.getId())
                             .eq("status", DocumentStatus.PROCESSING.getValue())
                             .set("status", DocumentStatus.FAILED.getValue())
                             .set("failure_code", errorCode)
-                            .set("failure_message", truncate(errorMessage, 512))
+                            .set("failure_message", DocumentFailureMessages.describe(errorCode))
                             .setSql("version = version + 1"));
+            if (docUpdated == 0) status.setRollbackOnly();
 
             return null;
         });

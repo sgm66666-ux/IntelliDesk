@@ -1,6 +1,7 @@
 package com.intellidesk.auth;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
@@ -60,28 +61,27 @@ public class JwtTokenProvider {
     }
 
     public boolean validateToken(String token) {
-        try {
-            Claims claims = Jwts.parser().verifyWith(key).build()
-                    .parseSignedClaims(token)
-                    .getPayload();
-            if (!"access".equals(claims.get("type", String.class))) {
-                log.warn("JWT token type is not access");
-                return false;
-            }
-            return true;
-        } catch (SignatureException e) {
-            log.warn("Invalid JWT signature");
-        } catch (MalformedJwtException e) {
-            log.warn("Invalid JWT token");
-        } catch (ExpiredJwtException e) {
-            log.warn("Expired JWT token");
-        } catch (UnsupportedJwtException e) {
-            log.warn("Unsupported JWT token");
-        } catch (IllegalArgumentException e) {
-            log.warn("JWT claims string is empty");
-        }
-        return false;
+        return parseAccessToken(token) != null;
     }
+
+    /** Validate and extract once; authorities are resolved from the current database state. */
+    public AccessIdentity parseAccessToken(String token) {
+        try {
+            Claims claims = parseToken(token);
+            Long userId = claims.get("userId", Long.class);
+            String username = claims.getSubject();
+            if (!"access".equals(claims.get("type", String.class)) || userId == null || userId <= 0
+                    || username == null || username.isBlank() || claims.getExpiration() == null) {
+                return null;
+            }
+            return new AccessIdentity(userId, username);
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("Rejected access JWT: {}", e.getClass().getSimpleName());
+        }
+        return null;
+    }
+
+    public record AccessIdentity(Long userId, String username) { }
 
     public String getUsernameFromToken(String token) {
         return parseToken(token).getSubject();
