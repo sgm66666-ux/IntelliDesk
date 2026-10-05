@@ -1,6 +1,6 @@
 # IntelliDesk 架构设计文档
 
-> 本文下方保留早期 Phase 0 设计草案（包含当时的候选版本、规划模块和概念 ER），不能把每一项规划视为当前已实现功能。当前实施依据为源码、迁移与 [Java 后端增强报告](backend/JAVA_BACKEND_ENHANCEMENT_REPORT.md)，实际依赖版本以 backend/pom.xml、frontend/package-lock.json 和 deploy/docker-compose.yml 为准。
+> 本文下方保留早期 Phase 0 设计草案（包含当时的候选版本、规划模块和概念 ER），不能把每一项规划视为当前已实现功能。当前实施依据为源码、迁移与 [后端工程说明](backend/BACKEND_ENGINEERING_REPORT.md)，实际依赖版本以 backend/pom.xml、frontend/package-lock.json 和 deploy/docker-compose.yml 为准。
 
 ## 当前实现概要（2026-10-05）
 

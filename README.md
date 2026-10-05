@@ -2,6 +2,8 @@
 
 **Java / Spring Boot 企业知识库与智能问答平台**
 
+## 项目简介
+
 IntelliDesk 是一个模块化单体项目，围绕工作空间授权、异步文档处理和可追溯知识问答，实践 Java 后端的安全、事务、消息重试、缓存与并发状态保护。Vue 前端提供知识库管理、文档状态、流式对话、引用来源和 API Key 管理。
 
 ## 系统架构
@@ -17,18 +19,18 @@ Vue 3 → Nginx → Spring Boot
                   └─ Spring AI：聊天模型、Embedding 与现有 RAG / Agent
 ~~~
 
-详见[架构说明](docs/ARCHITECTURE.md)与[Java 后端增强报告](docs/backend/JAVA_BACKEND_ENHANCEMENT_REPORT.md)。数据库、消息队列、对象存储是独立基础设施，不把该项目描述为微服务系统。
+详见[架构说明](docs/ARCHITECTURE.md)与[后端工程说明](docs/backend/BACKEND_ENGINEERING_REPORT.md)。应用采用模块化单体架构，数据库、消息队列和对象存储作为独立基础设施。
 
-## 核心 Java 后端能力
+## 核心后端能力
 
 | 能力 | 实际实现 |
 | --- | --- |
 | 认证与授权 | Spring Security、JWT、BCrypt、数据库 RBAC、工作空间成员/owner 校验、API Key scope |
 | 异步任务 | 持久化 DocumentTask、手动 ACK、publisher confirm/return、延迟重试与 DLQ |
-| 状态与事务 | 状态机、task status/attempt CAS、document version CAS、失败竞争回滚 |
+| 状态与事务 | 状态机、task status/attempt CAS、document version CAS、并发冲突回滚 |
 | 缓存 | 小型 KB metadata Cache Aside、授权先于缓存读取、提交后失效、Redis 故障回退 |
 | 数据访问 | PostgreSQL、MyBatis-Plus、唯一约束、租约扫描联合索引与真实 EXPLAIN |
-| 排错 | HTTP → 持久化 task → MQ TraceId/MDC、安全的统一响应与失败摘要 |
+| 可观测性 | HTTP → 持久化 task → MQ TraceId/MDC、安全的统一响应与异常摘要 |
 
 ## AI / RAG 能力
 
@@ -39,17 +41,18 @@ Vue 3 → Nginx → Spring Boot
 
 现有[受控 RAG Evaluation](docs/evaluation/report.md)使用 **SYNTHETIC / FICTIONAL** 语料：14 份文档、42 个实际 Chunk、69 个问题，其中 60 个合格问题参与质量指标，9 个无相关证据问题单列。在这份受控语料上，**HYBRID_RERANK 低于 HYBRID**；BM25 的 chunk MRR 也高于 Hybrid，因此不能宣称 Hybrid + RRF 普遍更优。检索相关性指标不等于答案正确率。
 
-项目完成过受控 RAG Evaluation、Benchmark 和 Failure Testing；[代表性 Benchmark 报告](docs/benchmark/report.md)保留测量范围和限制。本次 Java 增强没有重新运行模型评测，也没有产生新的性能或答案质量结论。不同历史语料与运行口径不得混合比较。
+项目包含受控 RAG Evaluation、Benchmark 和 Failure Testing；[代表性 Benchmark 报告](docs/benchmark/report.md)说明测量方法、适用范围与结果。不同语料与运行口径的指标需分别解读。
 
 ## 技术栈
 
-| 层级 | 技术 |
+| 类别 | 技术 |
 | --- | --- |
-| 后端 | Java 21、Spring Boot 3.5.8、Spring Security、MyBatis-Plus 3.5.9、JJWT 0.12.6 |
-| AI 接入 | Spring AI 1.1.2、可配置的聊天与 Embedding Provider |
-| 基础设施 | PostgreSQL 16 + pgvector、Redis、RabbitMQ、MinIO、Elasticsearch；既有 Flyway 迁移 |
+| 后端 | Java、Spring Boot、Spring Security、MyBatis-Plus |
+| 数据 | PostgreSQL、pgvector、Redis、Elasticsearch |
+| 消息与存储 | RabbitMQ、MinIO |
+| AI | Spring AI、Embedding、RAG、Agent |
 | 前端 | Vue 3、TypeScript、Vite、Pinia、Element Plus |
-| 验证与部署 | JUnit 5、Mockito、MockMvc、Testcontainers、Vitest、k6、Docker Compose、Nginx |
+| 工程与测试 | Docker Compose、Nginx、JUnit、Mockito、MockMvc、Testcontainers、Vitest、k6 |
 
 ## 文档处理流程
 
@@ -60,15 +63,15 @@ Vue 3 → Nginx → Spring Boot
     → 独立检索任务完成 Embedding / Elasticsearch 索引
 ~~~
 
-解析分块完成不等于检索索引已 READY。外部存储、模型与索引调用不放入长数据库事务；失败通过已有持久化任务和补偿流程恢复。
+解析分块完成与检索索引 READY 是两个独立阶段。外部存储、模型与索引调用位于数据库事务之外，由持久化任务与补偿流程协调恢复。
 
-## 安全模型
+## 安全与权限
 
 JWT 校验签名、到期时间、access 类型和必要身份字段；请求的角色权限从数据库读取，撤权不依赖等待旧 JWT 到期。全局 ADMIN/MEMBER 权限再叠加 workspace member/owner 检查；API Key 同时受 scope 约束。
 
 密码使用 BCrypt；完整 API Key 仅创建时返回一次，后续展示 metadata。LLM 不参与授权。真实凭证只放本地环境配置，不进入 Git、日志示例或截图。
 
-## RabbitMQ：重试、DLQ 与幂等
+## RabbitMQ 异步任务与可靠性
 
 - 持久化 exchange/queue，mandatory 发布、confirm/return 检查，consumer 手动 ACK。
 - 默认重试队列 TTL 为 30 秒；默认 3 次是总尝试数，不是额外重试 3 次。
@@ -77,32 +80,38 @@ JWT 校验签名、到期时间、access 类型和必要身份字段；请求的
 
 **成功提交后的重复投递可避免再次处理；提交前故障仍可能重新执行。** 数据库唯一约束、事务和 attempt fence 保护持久化结果，不承诺端到端 exactly-once 或零消息丢失。
 
-## Redis Cache Aside
+## Redis 缓存
 
 仅缓存小型知识库元数据，key 包含 workspaceId 与 kbId，内容上限 8192 字符，TTL 为 300–360 秒。每次先查数据库授权，再读取缓存。MISS 回源；DB 写入提交后失效；未提交事务不填充缓存；Redis 异常回退数据库。
 
-缓存是有界最终一致性，不缓存最终权限判断、正文、模型答案或一次性凭证。并发填充、失效失败仍可能造成短暂陈旧数据，不承诺强一致。
+缓存采用有界最终一致性，仅保存元数据；最终权限判断、正文、模型答案和一次性凭证不进入该缓存。并发填充或失效延迟可能带来短暂陈旧数据，由 TTL 限制其存续时间。
 
-## 数据库、事务与索引
+## 数据库与事务
 
-短事务协调 task/document claim、Chunk 保存与后续任务创建；状态竞争失败会回滚关联更新。任务 claim 校验 status + attempt_count，文档保留 version CAS，防止旧执行者跨重试周期提交。
+短事务协调 task/document claim、Chunk 保存与后续任务创建；状态竞争未获准时回滚关联更新。任务 claim 校验 status + attempt_count，文档保留 version CAS，防止旧执行者跨重试周期提交。
 
-新增租约索引为 document_index_task(status, lease_until)。[数据库分析](docs/backend/DATABASE_ACCESS_REVIEW.md)包含隔离 PostgreSQL 上 20,000 条合成任务的真实 EXPLAIN：该索引支持状态等值、租约范围与排序，但增加写入维护成本；单次计划时延不是吞吐提升承诺。既有唯一约束和适用的分页索引继续保留。
+租约扫描使用 document_index_task(status, lease_until) 联合索引。[数据库分析](docs/backend/DATABASE_ACCESS_REVIEW.md)包含隔离 PostgreSQL 上 20,000 条合成任务的真实 EXPLAIN：索引支持状态等值、租约范围与排序，同时带来写入维护成本。唯一约束与分页索引共同支撑数据一致性和列表访问；单次查询计划用于分析访问路径，不作为吞吐指标。
 
-## TraceId 与错误处理
+## TraceId 与异常处理
 
-入口限制 TraceId 字符和长度，将其关联到响应、持久化文档任务及 MQ 消费；MDC 同时带 task/document/message 标识，作用域结束恢复线程上下文。GlobalExceptionHandler 与文档失败摘要不直接回显外部异常正文或敏感机器路径。
+入口限制 TraceId 字符和长度，将其关联到响应、持久化文档任务及 MQ 消费；MDC 同时带 task/document/message 标识，作用域结束恢复线程上下文。GlobalExceptionHandler 与文档异常摘要使用安全响应，避免回显外部异常正文或敏感机器路径。
 
-这不是分布式追踪平台；旧任务没有保存的 originating trace 无法追溯补造。
+TraceId 用于关联请求与异步任务日志，关联范围以实际持久化的 trace 信息为准。
 
-## 测试与验证
+## 测试
 
-覆盖 JWT/RBAC、工作空间隔离、事务回滚、任务状态保护、MQ 重试/DLQ、缓存授权和真实 Redis/PostgreSQL/RabbitMQ 集成行为。本轮新增 53 项 Java 测试通过；前端 19 个测试文件、95 项测试通过；3 项新增脚本离线检查通过。
+项目使用 JUnit 5、Mockito、MockMvc、Testcontainers 与 Vitest，覆盖以下行为：
 
-**广范围后端回归并非全绿**：既有历史 HTTP capture fixture 缺失产生 ERROR，部分 HTTP 集成测试因 fixture 缺失 SKIP。范围、命令、准确计数、router 稳定性复验与构建结果见[完整验证说明](docs/backend/JAVA_BACKEND_ENHANCEMENT_REPORT.md)。不将跳过测试的 package 称为测试通过。
+- JWT / RBAC 与 workspace authorization。
+- 事务回滚、任务状态迁移与并发状态保护。
+- RabbitMQ retry / DLQ 与重复消息处理。
+- Redis 缓存读写、授权检查与提交后失效。
+- 前端认证、路由及核心交互。
+
+测试范围、环境要求与详细验证记录见[后端工程说明](docs/backend/BACKEND_ENGINEERING_REPORT.md)。
 
 ~~~powershell
-# 后端：部分集成测试要求 Docker；默认测试还可能依赖本地历史归档/fixture
+# 后端：按工程说明准备测试环境，集成测试使用 Docker
 mvn -f backend/pom.xml test
 
 # 前端
@@ -112,9 +121,9 @@ npm test -- --run
 npm run build
 ~~~
 
-[非 LLM 性能准备](docs/backend/NON_LLM_PERFORMANCE_PREPARATION.md)仅包含受限只读脚本与离线测试，本轮没有执行新的压测或正式 Benchmark。
+[非 LLM 性能准备](docs/backend/NON_LLM_PERFORMANCE_PREPARATION.md)提供受限只读脚本、离线检查和测量方法说明。
 
-## 本地开发
+## 本地运行
 
 准备 Docker Compose 和实际可用的聊天、Embedding Provider。只在尚无 .env 时复制模板，随后按本机服务填写；不要用模板覆盖现有真实配置。
 
@@ -123,9 +132,9 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
 ~~~
 
-Web 默认位于 http://localhost/，backend 在 Compose 内通过 Nginx 访问。环境项见[配置模板](.env.example)；模型必须由使用者根据实际 Provider 配置，不以“本机装过某模型”替代项目配置。
+Web 默认位于 http://localhost/，backend 在 Compose 内通过 Nginx 访问。环境项见[配置模板](.env.example)，聊天与 Embedding 模型按实际 Provider 配置。
 
-前后端独立开发需要 Java 21、Maven、Node.js 与对应依赖服务。先将自己的环境配置安全注入后端进程，再运行：
+前后端独立开发需要 Java、Maven、Node.js 与对应依赖服务；具体工具链要求以 backend/pom.xml 和 frontend/package.json 为准。先将自己的环境配置安全注入后端进程，再运行：
 
 ~~~powershell
 mvn -f backend/pom.xml spring-boot:run
@@ -136,22 +145,20 @@ npm run dev
 
 Vite 的 /api 代理默认指向 localhost:8080。生产部署仍需独立完成凭证、TLS、数据库迁移、网络隔离与实际工作负载验证。
 
-## 真实界面
+## 项目界面
 
 ![知识库与文档管理](docs/demo/screenshots/knowledge-base-documents.png)
 
 ![流式问答与引用](docs/demo/screenshots/rag-conversation-citations.png)
 
-更多既有截图：[文档 Chunk](docs/demo/screenshots/document-detail-chunks.png)、[API Key metadata](docs/demo/screenshots/api-key-metadata.png)、[Agent 工具轨迹](docs/demo/screenshots/agent-tool-trace.png)。
+更多真实界面：[文档 Chunk](docs/demo/screenshots/document-detail-chunks.png)、[API Key metadata](docs/demo/screenshots/api-key-metadata.png)、[Agent 工具轨迹](docs/demo/screenshots/agent-tool-trace.png)。
 
-## 已知边界
+## 设计边界
 
-- 当前证据不支持生产 SLA、高可用或未经测量的 QPS/P95 指标；本项目不承诺这些能力。
-- 重试不等于只执行一次，数据库事务也不覆盖外部存储和索引。
-- 元数据缓存可能短暂陈旧；深分页和前置通配符查询仍有成本。
-- RAG 可能检索错源或生成失败；引用存在不代表答案正确，Reranker 不能保证提升效果。
-- 受控合成语料不是实际企业数据或真实业务效果证明。
-- 缺失历史 fixture 的测试限制仍保留；前端构建还有 bundle 大小提示。
-- 此次提交仅包含 Java 增强、测试修复及公开说明，不发布本地历史模型实验、raw provider 输出或内部归档。
+- RabbitMQ 重试采用重复投递下的幂等处理，不等同于端到端 exactly-once。
+- 数据库事务限定于数据库内操作，外部存储与索引通过任务和补偿流程协调。
+- Cache Aside 采用最终一致性，允许受 TTL 约束的短暂陈旧窗口。
+- RAG 结果受检索、语料和模型能力影响；引用用于溯源，答案正确性需要独立验证。
+- 受控合成语料用于展示与评测，结论以对应数据集和运行条件为边界。
 
 完整验证与历史证据保留于本地归档，公开仓库仅保留源码、方法说明与代表性结果。
