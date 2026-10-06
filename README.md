@@ -1,10 +1,10 @@
 # IntelliDesk
 
-**Java / Spring Boot 企业知识库与智能问答平台**
+**企业文档管理与智能服务平台**
 
 ## 项目简介
 
-IntelliDesk 是一个模块化单体项目，围绕工作空间授权、异步文档处理和可追溯知识问答，实践 Java 后端的安全、事务、消息重试、缓存与并发状态保护。Vue 前端提供知识库管理、文档状态、流式对话、引用来源和 API Key 管理。
+IntelliDesk 是基于 Spring Boot 构建的企业文档管理与智能服务平台，围绕用户认证、工作空间权限、文档管理、异步任务、缓存与检索等业务能力，集成 RAG 与智能问答功能。后端采用 Java 模块化单体架构，通过 Spring Security、PostgreSQL、Redis 与 RabbitMQ 协调权限、数据与任务处理；Vue 前端提供文档管理、对话和引用来源等交互。
 
 ## 系统架构
 
@@ -32,28 +32,6 @@ Vue 3 → Nginx → Spring Boot
 | 数据访问 | PostgreSQL、MyBatis-Plus、唯一约束、租约扫描联合索引与真实 EXPLAIN |
 | 可观测性 | HTTP → 持久化 task → MQ TraceId/MDC、安全的统一响应与异常摘要 |
 
-## AI / RAG 能力
-
-- Markdown、TXT、PDF 解析分块；Embedding 写入 pgvector，关键词索引写入 Elasticsearch。
-- Vector、BM25、Hybrid + RRF；可选 Reranker，不保证排序一定改善。
-- Query Rewrite、上下文构建、引用校验、SSE 增量回答。
-- 有界 Agent 工具调用、参数校验、结果脱敏和可查看的工具轨迹。
-
-现有[受控 RAG Evaluation](docs/evaluation/report.md)使用 **SYNTHETIC / FICTIONAL** 语料：14 份文档、42 个实际 Chunk、69 个问题，其中 60 个合格问题参与质量指标，9 个无相关证据问题单列。在这份受控语料上，**HYBRID_RERANK 低于 HYBRID**；BM25 的 chunk MRR 也高于 Hybrid，因此不能宣称 Hybrid + RRF 普遍更优。检索相关性指标不等于答案正确率。
-
-项目包含受控 RAG Evaluation、Benchmark 和 Failure Testing；[代表性 Benchmark 报告](docs/benchmark/report.md)说明测量方法、适用范围与结果。不同语料与运行口径的指标需分别解读。
-
-## 技术栈
-
-| 类别 | 技术 |
-| --- | --- |
-| 后端 | Java、Spring Boot、Spring Security、MyBatis-Plus |
-| 数据 | PostgreSQL、pgvector、Redis、Elasticsearch |
-| 消息与存储 | RabbitMQ、MinIO |
-| AI | Spring AI、Embedding、RAG、Agent |
-| 前端 | Vue 3、TypeScript、Vite、Pinia、Element Plus |
-| 工程与测试 | Docker Compose、Nginx、JUnit、Mockito、MockMvc、Testcontainers、Vitest、k6 |
-
 ## 文档处理流程
 
 ~~~text
@@ -71,7 +49,7 @@ JWT 校验签名、到期时间、access 类型和必要身份字段；请求的
 
 密码使用 BCrypt；完整 API Key 仅创建时返回一次，后续展示 metadata。LLM 不参与授权。真实凭证只放本地环境配置，不进入 Git、日志示例或截图。
 
-## RabbitMQ 异步任务与可靠性
+## 异步任务与消息可靠性
 
 - 持久化 exchange/queue，mandatory 发布、confirm/return 检查，consumer 手动 ACK。
 - 默认重试队列 TTL 为 30 秒；默认 3 次是总尝试数，不是额外重试 3 次。
@@ -97,6 +75,30 @@ JWT 校验签名、到期时间、access 类型和必要身份字段；请求的
 入口限制 TraceId 字符和长度，将其关联到响应、持久化文档任务及 MQ 消费；MDC 同时带 task/document/message 标识，作用域结束恢复线程上下文。GlobalExceptionHandler 与文档异常摘要使用安全响应，避免回显外部异常正文或敏感机器路径。
 
 TraceId 用于关联请求与异步任务日志，关联范围以实际持久化的 trace 信息为准。
+
+## AI / RAG 能力
+
+在企业文档管理和权限体系基础上，通过 Spring AI 接入 LLM 与 Embedding，融合 pgvector 与 Elasticsearch 构建混合检索及引用问答能力。智能服务模块复用工作空间授权和文档索引。
+
+- Markdown、TXT、PDF 解析分块；Embedding 写入 pgvector，关键词索引写入 Elasticsearch。
+- Vector、BM25、Hybrid + RRF；可选 Reranker，不保证排序一定改善。
+- Query Rewrite、Context Builder（上下文构建）、Citation（引用校验）、SSE 增量回答。
+- 有界 Agent 工具调用、参数校验、结果脱敏和可查看的工具轨迹。
+
+现有[受控 RAG Evaluation](docs/evaluation/report.md)使用 **SYNTHETIC / FICTIONAL** 语料：14 份文档、42 个实际 Chunk、69 个问题，其中 60 个合格问题参与质量指标，9 个无相关证据问题单列。在这份受控语料上，**HYBRID_RERANK 低于 HYBRID**；BM25 的 chunk MRR 也高于 Hybrid，因此不能宣称 Hybrid + RRF 普遍更优。检索相关性指标不等于答案正确率。
+
+项目包含受控 RAG Evaluation、Benchmark 和 Failure Testing；[代表性 Benchmark 报告](docs/benchmark/report.md)说明测量方法、适用范围与结果。不同语料与运行口径的指标需分别解读。
+
+## 技术栈
+
+| 类别 | 技术 |
+| --- | --- |
+| 后端 | Java、Spring Boot、Spring Security、MyBatis-Plus |
+| 数据 | PostgreSQL、pgvector、Redis、Elasticsearch |
+| 消息与存储 | RabbitMQ、MinIO |
+| AI | Spring AI、Embedding、RAG、Agent |
+| 前端 | Vue 3、TypeScript、Vite、Pinia、Element Plus |
+| 工程与测试 | Docker Compose、Nginx、JUnit、Mockito、MockMvc、Testcontainers、Vitest、k6 |
 
 ## 测试
 
