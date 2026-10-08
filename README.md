@@ -62,7 +62,7 @@ JWT 校验签名、到期时间、access 类型和必要身份字段；请求的
 
 仅缓存小型知识库元数据，key 包含 workspaceId 与 kbId，内容上限 8192 字符，TTL 为 300–360 秒。每次先查数据库授权，再读取缓存。MISS 回源；DB 写入提交后失效；未提交事务不填充缓存；Redis 异常回退数据库。
 
-缓存采用有界最终一致性，仅保存元数据；最终权限判断、正文、模型答案和一次性凭证不进入该缓存。并发填充或失效延迟可能带来短暂陈旧数据，由 TTL 限制其存续时间。
+缓存采用最终一致性，仅保存元数据；最终权限判断、正文、模型答案和一次性凭证不进入该缓存。并发填充或失效延迟可能带来短暂陈旧数据。每个缓存项的 TTL 从最后一次写入 Redis 起计算，为 300–360 秒；DB 提交后失效与到期回源共同更新元数据。
 
 ## 数据库与事务
 
@@ -110,11 +110,14 @@ TraceId 用于关联请求与异步任务日志，关联范围以实际持久化
 - Redis 缓存读写、授权检查与提交后失效。
 - 前端认证、路由及核心交互。
 
-测试范围、环境要求与详细验证记录见[后端工程说明](docs/backend/BACKEND_ENGINEERING_REPORT.md)。
+测试范围、环境要求与详细验证记录见[后端工程说明](docs/backend/BACKEND_ENGINEERING_REPORT.md)。下列后端命令选择公开源码中的代表性测试；历史验证计数以报告标注的运行范围为准。
 
 ~~~powershell
-# 后端：按工程说明准备测试环境，集成测试使用 Docker
-mvn -f backend/pom.xml test
+# 后端单元测试：Java 21、Maven，在仓库根目录执行
+mvn -f backend/pom.xml "-Dtest=JwtTokenProviderTest,DocumentTaskConsumerTest,KnowledgeBaseMetadataCacheTest" test
+
+# 后端集成测试：启动 Docker，允许拉取 Testcontainers 镜像
+mvn -f backend/pom.xml "-Dtest=DocumentTaskConcurrencyIntegrationTest,KnowledgeBaseRedisIntegrationTest,DocumentRabbitTopologyIntegrationTest" test
 
 # 前端
 cd frontend
@@ -122,6 +125,8 @@ npm ci
 npm test -- --run
 npm run build
 ~~~
+
+完整后端测试入口为 `mvn -f backend/pom.xml test`；执行前按所选测试准备 HTTP provider fixture 或评测归档输入。上述定向命令不选择模型评测和 Benchmark harness；具体依赖见[公开测试入口与前提](docs/backend/BACKEND_ENGINEERING_REPORT.md#公开测试入口与前提)。
 
 [非 LLM 性能准备](docs/backend/NON_LLM_PERFORMANCE_PREPARATION.md)提供受限只读脚本、离线检查和测量方法说明。
 
@@ -159,7 +164,7 @@ Vite 的 /api 代理默认指向 localhost:8080。生产部署仍需独立完成
 
 - RabbitMQ 重试采用重复投递下的幂等处理，不等同于端到端 exactly-once。
 - 数据库事务限定于数据库内操作，外部存储与索引通过任务和补偿流程协调。
-- Cache Aside 采用最终一致性，允许受 TTL 约束的短暂陈旧窗口。
+- Cache Aside 采用最终一致性；缓存项自最后一次写入起按 TTL 到期，并结合 DB 提交后失效更新。
 - RAG 结果受检索、语料和模型能力影响；引用用于溯源，答案正确性需要独立验证。
 - 受控合成语料用于展示与评测，结论以对应数据集和运行条件为边界。
 

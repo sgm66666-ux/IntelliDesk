@@ -68,7 +68,7 @@ Document 的 COMPLETED / ingestion task 的 SUCCEEDED 表示解析分块阶段�
 
 仅知识库小型元数据；key 为 `intellidesk:kb:metadata:{workspaceId}:{kbId}`，序列化内容上限 8192 字符，TTL 300–360 秒。每次先查数据库 membership，再查缓存。MISS 查 DB 并填充；HIT 不免除权限检查。跨空间/错误 ID 缓存条目被拒绝。
 
-DB 创建/更新/删除提交后失效匹配缓存；事务未提交不填充，回滚不执行 afterCommit。Redis 异常回退 DB，不让缓存故障破坏基本业务。失败失效与并发读填充仍可能带来短暂陈旧元数据，TTL 约束最终一致性；不声称强一致缓存。
+DB 创建/更新/删除提交后失效匹配缓存；事务未提交不填充，回滚不执行 afterCommit。Redis 异常回退 DB，不让缓存故障破坏基本业务。失败失效与并发读填充仍可能带来短暂陈旧元数据。TTL 为单个条目从最后一次写入 Redis 起的 300–360 秒存续期；并发旧值回填时从该次写入重新计时。提交后失效与 TTL 到期回源共同协调最终一致性；不声称强一致缓存。
 
 不缓存权限最终判定、敏感一次性数据、正文或模型答案。不缓存不存在的 KB（缺失数据请求仍访问 DB），不添加 Bloom Filter/新的分布式锁。TTL jitter 缓解集中到期，但不等于彻底解决击穿/穿透/雪崩；需要根据真实授权流量决定下一步。
 
@@ -85,6 +85,19 @@ DB 创建/更新/删除提交后失效匹配缓存；事务未提交不填充，
 document 状态沿用 version CAS。任务 claim 使用 status + snapshot attempt_count CAS 并约束 attempt_count < max_attempts，解决跨 retry 周期的 stale snapshot/ABA；不采用全 task-version 比较，以免与 PENDING→QUEUED 的正常 dispatch 产生不必要竞争。真实两个并发事务验证恰好一个成功。
 
 TraceIdFilter 限制外部 trace 字符/长度，保存在 request attribute、ThreadLocal/MDC 与响应头；新的文档任务持久化 originating traceId，publisher 将其放入消息，consumer 同时关联 taskId/documentId/messageId。AutoCloseable scope finally 恢复/清理线程上下文，包括错误和 nack 路径；不清空其他组件合法 MDC。旧任务缺失 originating trace 时不能假造历史关联。统一异常与任务失败摘要不返回原始外部异常正文/内部路径/凭证。
+
+## 公开测试入口与前提
+
+在仓库根目录使用 Java 21 与 Maven。README 给出的定向入口选择以下公开测试类：
+
+| 入口 | 测试类 | 环境与范围 |
+| --- | --- | --- |
+| 单元测试 | `JwtTokenProviderTest`、`DocumentTaskConsumerTest`、`KnowledgeBaseMetadataCacheTest` | JWT、消息处理与缓存行为；测试使用自身 fixture / Mockito，不需要真实聊天模型 |
+| Testcontainers 集成测试 | `DocumentTaskConcurrencyIntegrationTest`、`KnowledgeBaseRedisIntegrationTest`、`DocumentRabbitTopologyIntegrationTest` | 可用的 Docker daemon 与镜像拉取权限；分别使用 pgvector/PostgreSQL、Redis、RabbitMQ，真实 retry TTL 用例需等待约 30 秒 |
+
+这些入口选择部分代表性公开测试，历史验证清单、计数与运行环境仍以原验证章节为准。本节补充执行方法，没有产生新的测试结果。
+
+默认 `mvn -f backend/pom.xml test` 会按 Maven 规则发现更多测试。HTTP provider 集成测试按各自配置准备本地 fixture；正式 Evaluation / Benchmark 的显式运行另需对应语料、配置和归档证据。测试输入与运行记录以公开源码和各报告标注的证据范围区分，不把本地未发布资料视为干净 clone 自带文件。
 
 ## 19. 测试结果（非重复累计）
 
