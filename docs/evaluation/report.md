@@ -4,6 +4,20 @@
 > 本报告如实记录 approved amendment v1.1 实施后的最终真实质量结果与所有限制。
 > **Ready for Independent Review: YES** —— 见 §18 / §20。
 
+## 公开证据与归档范围
+
+本报告保留原实施阶段的结果和配置身份。公开仓库提供评测方法与 harness 源码，完整输入和运行证据保留于本地归档；后文出现的归档路径是原运行记录中的定位信息。
+
+| 内容 | 当前可用位置 | 用途 |
+| --- | --- | --- |
+| 方法、指标与代表性结果 | `docs/evaluation/report.md` | 阅读评测口径与历史结果 |
+| Harness、指标计算与重算实现 | `backend/src/test/java/com/intellidesk/evaluation/` | 核对评测流程与计算逻辑 |
+| 冻结及校验脚本、reranker identity 配置 | `scripts/evaluation/` | 核对冻结、哈希与运行身份方法 |
+| Corpus、dataset、retrieval config | 本地归档：`docs/evaluation/corpus/`、`dataset/`、`config/` | 重放检索所需的原输入 |
+| Raw、chunk manifest、derived metrics、run-set manifests | 本地归档：`docs/evaluation/raw/`、`derived/` | 核验运行身份与独立重算历史指标 |
+
+重算历史指标需取得匹配的 dataset 与 raw，并校验报告中的 corpus / dataset / config hash 及 run-set manifest；重放检索还需完整 corpus、冻结配置和原 provider 环境。当前公开 clone 提供方法和代表性结果，完整复现需另行准备上述归档输入。以下历史验收状态均指原实施阶段记录。
+
 ## 1. Scope
 
 本报告覆盖 Phase 8 Wave 1（RAG Evaluation）approved amendment v1.1 实施侧产出：
@@ -154,9 +168,13 @@ retrieval_config_hash         = 2ae529f6aa1ba50845890374762191cc8a41543aec3c1eca
 ```
 Hit@K(q)   = 1  if Ret_K(q) ∩ Rel(q) ≠ ∅  else 0
 Recall@K(q)= |Ret_K(q) ∩ Rel(q)| / |Rel(q)|
-MRR(q)     = 1 / rank(first relevant in R(q));  top-K 无 relevant → 0
+RR(q)      = 1 / rank(first relevant in R(q));  R(q) 中无 relevant → 0
+MRR        = mean RR(q) over eligible quality questions
 ```
 
+- Hit@K / Recall@K 只计算前 K 项；RR 使用传给计算器的完整返回列表，与报告 K 无关。例如相关项在第 2 位、K=1 时，Hit@1=0，而 RR=1/2。
+- 本轮 harness 的 `TOP_K=10`：MRR 的排名范围是最多 10 项的最终返回列表，而非 `candidate_top_k=50` 的候选池或整个语料库。Document-level 按 chunk 列表中文档首次出现顺序去重后计算排名。
+- 定义与 `EvalMetricsCalculator` 及 `EvalMetricsCalculatorTest.hitBehindKIsNoHitButMrrIsFullListRank` 一致；本次仅修正文档定义，历史数值不变。
 - **chunk-level** 与 **document-level** 分开聚合，不混为一个数。
 - 聚合 = mean over eligible quality questions（60）；无命中但 qualified 的题纳入基数（贡献 0）。
 - 原始证据同时保存：rank、logicalDocumentId、logicalChunkId、score、score_type、relevant true/false（raw 中已包含）。
@@ -189,7 +207,7 @@ MRR(q)     = 1 / rank(first relevant in R(q));  top-K 无 relevant → 0
 | HYBRID | 0.95000 | 1.00000 | 1.00000 | 1.00000 | 1.00000 | 0.97500 |
 | HYBRID_RERANK | 0.45000 | 0.95000 | 1.00000 | 1.00000 | 1.00000 | 0.67639 |
 
-> 数字来源：`docs/evaluation/derived/metrics_summary.json`（mode × run × level × K）。recompute 路径只读 raw，不做检索重放，确定性。
+> 历史数字来源：本地归档 `docs/evaluation/derived/metrics_summary.json`（mode × run × level × K）。取得匹配的 raw 与 dataset 后，recompute 路径只读 raw，不做检索重放，确定性。
 
 ## 15. Results note on HYBRID_RERANK
 
@@ -230,9 +248,11 @@ MRR(q)     = 1 / rank(first relevant in R(q));  top-K 无 relevant → 0
 
 - 本 Wave 交付可复现的 RAG evaluation harness + 冻结语料/数据集/配置 + 真实容器化 production retrieval 类 + 真实本地 embedding/reranker provider。
 - 受控合成语料上，关键词类事实问答由 BM25 主导；真实向量语义质量可用；真实 reranker 本次未带来增益，已如实记录。
-- 所有数字均可从 raw 用 `EvalRecomputeScript` 独立重算，无 cherry-picking、无手工改 raw、无删除差题、无改 ground truth。
+- 原实施阶段记录：所有数字由 raw 用 `EvalRecomputeScript` 重算，无 cherry-picking、无手工改 raw、无删除差题、无改 ground truth。独立重算历史数字需准备“公开证据与归档范围”列出的匹配归档输入。
 
 ## 20. Raw artifact paths
+
+本节 corpus / dataset / config / raw / derived 路径均指本地归档；harness、recompute 和脚本源码位于公开仓库。路径保留用于定位原证据，文件可用范围见“公开证据与归档范围”。
 
 - Raw runs：`docs/evaluation/raw/eval-VECTOR-{1,2}.json`、`eval-KEYWORD-{1,2}.json`、`eval-HYBRID-{1,2}.json`、`eval-HYBRID_RERANK-{1,2}.json`
   - 每条包含：run_id、timestamp、mode、corpus_hash、dataset_hash、config_hash、topK、candidateTopK、reported_k、rerank_config、embedding、index、harness_file_sha256、environment、per-question `ranked[]`（rank/db_chunk_id/logical_document_id/logical_chunk_id/score/score_type/relevant）与 `retrieval_latency_ms`。
@@ -370,7 +390,7 @@ MRR(q)     = 1 / rank(first relevant in R(q));  top-K 无 relevant → 0
 - 未重新生成 synthetic raw 冒充 original；Appendix A 继续标记为 summary-only historical synthetic pipeline-validation evidence。
 - 新 immutable replay evidence 位于 `docs/evaluation/raw/real-quality/...`。
 
-## Ready for Independent Review: YES
+## 原实施阶段状态：Ready for Independent Review: YES
 
 - 14 个 Wave 1 mandatory gates 全部实施并 PASS（见 implementation record gate matrix）。
 - Amendment implementation gates 全部 PASS。

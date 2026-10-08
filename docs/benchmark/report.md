@@ -10,6 +10,12 @@ All seven mandatory scenarios have a distinct finalized run-set and pass the rea
 
 These are controlled local benchmark results. They are useful for regression baselines and engineering comparison, but they are not production SLAs. Deterministic provider-boundary stubs are identified explicitly; real-provider latency is not inferred from them.
 
+## Public evidence and archival scope
+
+This report preserves the historical run-set results and acceptance record. The public repository contains the methodology, representative results, benchmark harnesses under `backend/src/test/java/com/intellidesk/benchmark/`, and tooling under `scripts/benchmark/`. Full fixtures, frozen runtime configurations, raw samples, manifests, and acceptance reviews remain in the local archive.
+
+Paths in the Traceability section identify archived records rather than files distributed with the public clone. Independent recomputation requires the matching raw records, manifests, frozen configuration, and authoritative selectors; replay additionally requires the original fixtures, infrastructure, and provider setup. Manifest hashes below identify the historical artifacts and should be checked against those artifacts when available.
+
 ## Accepted run-set matrix
 
 | Scenario | Contract / provider | Accepted run-set | Matrix | Authoritative samples | Errors | Strict acceptance |
@@ -28,7 +34,7 @@ All values below are recomputed/validated from persisted authoritative raw recor
 
 ### Retrieval component
 
-VECTOR, BM25, and HYBRID each contributed 27,000 standard-contract samples in total; real RERANK contributed 1,157 provider-class samples. All 12 mode/concurrency groups passed component `CV(p50)<=10%` and p95 median-relative deviation `<=15%`.
+VECTOR, BM25, and HYBRID together contributed 27,000 standard-contract samples; real RERANK contributed 1,157 provider-class samples, giving 28,157 retrieval samples in total. All 12 mode/concurrency groups passed component `CV(p50)<=10%` and p95 median-relative deviation `<=15%`.
 
 Representative real-RERANK observations:
 
@@ -111,6 +117,8 @@ The following evidence remains retained, immutable, and excluded from final metr
 - Other failed/superseded Retrieval and benchmark run-sets remain in their historical directories and are not pooled or promoted.
 
 ## Traceability
+
+The following paths locate historical review records in the local archive; they are not included in the public repository. The recorded statuses refer to the original runs.
 
 - Retrieval: `docs/reviews/phase-08-wave-02-formal-retrieval-008-acceptance-20260905.md`
 - API Key Auth: `docs/reviews/phase-08-wave-02-formal-api-key-auth-004-acceptance-20260905.md`
