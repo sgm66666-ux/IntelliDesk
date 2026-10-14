@@ -110,7 +110,7 @@ TraceId 用于关联请求与异步任务日志，关联范围以实际持久化
 - Redis 缓存读写、授权检查与提交后失效。
 - 前端认证、路由及核心交互。
 
-测试范围、环境要求与详细验证记录见[后端工程说明](docs/backend/BACKEND_ENGINEERING_REPORT.md)。下列后端命令选择公开源码中的代表性测试；历史验证计数以报告标注的运行范围为准。
+测试范围、环境要求与历史验证摘要见[后端工程说明](docs/backend/BACKEND_ENGINEERING_REPORT.md)。下列后端命令选择公开源码中的代表性测试；历史验证计数以报告标注的运行范围为准。
 
 ~~~powershell
 # 后端单元测试：Java 21、Maven，在仓库根目录执行
@@ -127,8 +127,6 @@ npm run build
 ~~~
 
 完整后端测试入口为 `mvn -f backend/pom.xml test`；执行前按所选测试准备 HTTP provider fixture 或评测归档输入。上述定向命令不选择模型评测和 Benchmark harness；具体依赖见[公开测试入口与前提](docs/backend/BACKEND_ENGINEERING_REPORT.md#公开测试入口与前提)。
-
-[非 LLM 性能准备](docs/backend/NON_LLM_PERFORMANCE_PREPARATION.md)提供受限只读脚本、离线检查和测量方法说明。
 
 ## 本地运行
 
@@ -168,4 +166,4 @@ Vite 的 /api 代理默认指向 localhost:8080。生产部署仍需独立完成
 - RAG 结果受检索、语料和模型能力影响；引用用于溯源，答案正确性需要独立验证。
 - 受控合成语料用于展示与评测，结论以对应数据集和运行条件为边界。
 
-完整验证与历史证据保留于本地归档，公开仓库仅保留源码、方法说明与代表性结果。
+历史验证材料未随公开仓库提供，公开仓库仅保留源码、方法说明与代表性结果。
