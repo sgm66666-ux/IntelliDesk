@@ -1,20 +1,19 @@
-# IntelliDesk Phase 8 Wave 2 Benchmark Report
+# IntelliDesk Benchmark Report
 
 Date: 2026-09-10  
-Scope: seven mandatory Wave 2 benchmark scenarios  
-Status: `PHASE8_WAVE2_FINAL_PASS_SELF_REVIEWED`
+Scope: seven controlled local benchmark scenarios
 
 ## Executive summary
 
-All seven mandatory scenarios have a distinct finalized run-set and pass the read-only strict acceptance validator. Across the accepted run-sets there are 1,691,143 authoritative measured samples/executions and zero authoritative errors. No failed, diagnostic, superseded, or historical run-set is pooled into these results.
+All seven reported scenarios have a distinct finalized run-set and pass the read-only strict acceptance validator. Across the accepted run-sets there are 1,691,143 authoritative measured samples/executions and zero authoritative errors. No failed, diagnostic, superseded, or historical run-set is pooled into these results.
 
 These are controlled local benchmark results. They are useful for regression baselines and engineering comparison, but they are not production SLAs. Deterministic provider-boundary stubs are identified explicitly; real-provider latency is not inferred from them.
 
 ## Public evidence and archival scope
 
-This report preserves the historical run-set results and acceptance record. The public repository contains the methodology, representative results, benchmark harnesses under `backend/src/test/java/com/intellidesk/benchmark/`, and tooling under `scripts/benchmark/`. Full fixtures, frozen runtime configurations, raw samples, manifests, and acceptance reviews remain in the local archive.
+This report preserves the historical measurement results and experimental conditions. The public repository contains the methodology, representative results, benchmark harnesses under `backend/src/test/java/com/intellidesk/benchmark/`, and tooling under `scripts/benchmark/`. Full fixtures, frozen runtime configurations, raw samples, manifests, and acceptance reviews are historical validation materials not included in the public repository.
 
-Paths in the Traceability section identify archived records rather than files distributed with the public clone. Independent recomputation requires the matching raw records, manifests, frozen configuration, and authoritative selectors; replay additionally requires the original fixtures, infrastructure, and provider setup. Manifest hashes below identify the historical artifacts and should be checked against those artifacts when available.
+Independent recomputation requires the matching raw records, manifests, frozen configuration, and authoritative selectors; replay additionally requires the original fixtures, infrastructure, and provider setup. These archival inputs are not included in the public clone.
 
 ## Accepted run-set matrix
 
@@ -94,38 +93,12 @@ Document Processing includes the first cold execution because warmup is frozen a
 - Document Processing uses PostgreSQL, MinIO, RabbitMQ, the document consumer, parser, chunking, embedding, and Elasticsearch indexing. T1 requires both `DocumentStatus.COMPLETED` and `RetrievalTaskStatus.READY`.
 - Formal manifests are writer-owned and remain immutable. `COMPLETE` means artifact completeness; the separate read-only strict validator supplies final eligibility.
 
-## Immutable evidence index
+## Limitations and evidence scope
 
-| Scenario | Manifest SHA-256 |
-|---|---|
-| Retrieval 008 | `895f10987cd3d02880df7ffc6a886df252af2aca8b8aedf543e957dc5a2e3e8a` |
-| API Key Auth 004 | `0d8bae074bab8219b6932d16621109e3fdaeefd1a7b96db6b07f02ffdef12165` |
-| RAG Pipeline 010 | `2186f86e38429a23992dde3263e550c69d0e9b05ac297d139e7613e6b8ef35d4` |
-| HTTP Concurrency 010 | `aeb1c500f497d367f4dd936d91b8279df09313e00c6f8e42c81cdd414bbbf306` |
-| RAG Completion 001 | `b48429d3cd8a74502f1583bed1c5fed720c2e36f1e59da4e6085c37f73e5ab28` |
-| Document Processing 002 | `980b446684186b04d9d6e49899965ae7a30d61c3196396dac2a4bfe49af61173` |
-| Agent Tool Flow 001 | `6ae65c3b33b63d755c7a6893e5952d4216cf00006f0da33fd23fe82dea7c6082` |
+These are historical measurements from a controlled local environment, not a new regression result or a production SLA. RAG Pipeline, RAG Completion and Agent Tool Flow use deterministic provider-boundary stubs; their timings do not establish real-model generation latency or answer quality. Retrieval's real reranker measurements use a different provider-class sample contract from the standard retrieval modes.
 
-## Rejected and non-authoritative evidence
+Only the accepted run-sets in the matrix contribute to these metrics. Earlier failed, diagnostic, superseded and non-authoritative runs remain excluded; their full classifications, manifest identities and acceptance reviews are historical validation materials not included in the public repository. They were not replaced or pooled to change the reported results.
 
-The following evidence remains retained, immutable, and excluded from final metrics:
+Specifically, HTTP Concurrency 003 was non-authoritative; HTTP Concurrency 008/009 were historical failed runs; Document Processing 001 was ineligible after repeated-source deduplication exposed a harness defect. None of these runs contributed to the final metrics.
 
-- HTTP Concurrency 003: permanently `NON_AUTHORITATIVE_FOR_FINAL_GATE`; manifest `a298f1905f431cb26c3b768d6328b9ba098a1abf92bb01a3a90dc9baf51ea006`.
-- HTTP Concurrency 008: `FAILED / INELIGIBLE / IMMUTABLE`; manifest `460efe7f549723637faa3f94d540326cf897a2008a15652c92f24502e7a27a32`.
-- HTTP Concurrency 009: `FAILED / INELIGIBLE / IMMUTABLE`; manifest `0368ef0c8e94ec0ebe3113417df9291b022924c9b3bf65ad6dd4a6e1041ed04f`.
-- Document Processing 001: `INELIGIBLE / IMMUTABLE` after repeated-source deduplication exposed a harness defect; manifest `bcecf19216c63c76dd3383ca29756861cb9f40120b95fcdd0be256fb6defecd5`.
-- Other failed/superseded Retrieval and benchmark run-sets remain in their historical directories and are not pooled or promoted.
-
-## Traceability
-
-The following paths locate historical review records in the local archive; they are not included in the public repository. The recorded statuses refer to the original runs.
-
-- Retrieval: `docs/reviews/phase-08-wave-02-formal-retrieval-008-acceptance-20260905.md`
-- API Key Auth: `docs/reviews/phase-08-wave-02-formal-api-key-auth-004-acceptance-20260905.md`
-- RAG Pipeline: `docs/reviews/phase-08-wave-02-formal-rag-pipeline-010-acceptance-20260910.md`
-- HTTP Concurrency: `docs/reviews/phase-08-wave-02-formal-http-concurrency-010-acceptance-20260910.md`
-- RAG Completion: `docs/reviews/phase-08-wave-02-formal-rag-completion-001-acceptance-20260910.md`
-- Document Processing: `docs/reviews/phase-08-wave-02-formal-document-processing-002-acceptance-20260910.md`
-- Agent Tool Flow: `docs/reviews/phase-08-wave-02-formal-agent-tool-flow-001-acceptance-20260910.md`
-
-Final Wave 2 archival status is recorded in `docs/reviews/phase-08-wave-02-final-self-review-20260910.md` and `docs/reviews/phase-08-wave-02-final-archive-20260910.md`.
+The public repository provides the harnesses, validation tooling and representative results. Reproducing historical results requires the archived inputs and original runtime conditions; the reported acceptance status does not establish that every test in a fresh public clone passes.
