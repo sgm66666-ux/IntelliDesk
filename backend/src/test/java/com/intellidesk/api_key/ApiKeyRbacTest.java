@@ -88,6 +88,73 @@ class ApiKeyRbacTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void readApiKeyCannotCreateWorkspace() throws Exception {
+        String fullKey = createReadApiKey();
+        Integer before = jdbc.queryForObject("SELECT COUNT(*) FROM workspace", Integer.class);
+
+        mockMvc.perform(post("/api/workspaces")
+                        .header("X-API-Key", fullKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Forbidden key-created workspace\"}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM workspace", Integer.class)).isEqualTo(before);
+    }
+
+    @Test
+    void readApiKeyCannotModifyCurrentUserProfile() throws Exception {
+        String fullKey = createReadApiKey();
+        Long userId = jwt.getUserIdFromToken(ownerAccessToken);
+        String emailBefore = jdbc.queryForObject("SELECT email FROM sys_user WHERE id = ?", String.class, userId);
+
+        mockMvc.perform(put("/api/users/me")
+                        .header("X-API-Key", fullKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"changed@example.invalid\"}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(jdbc.queryForObject("SELECT email FROM sys_user WHERE id = ?", String.class, userId))
+                .isEqualTo(emailBefore);
+    }
+
+    @Test
+    void readApiKeyCannotDeleteAnotherOwnedWorkspaceButJwtCan() throws Exception {
+        String fullKey = createReadApiKey();
+        MvcResult created = mockMvc.perform(post("/api/workspaces")
+                        .header("Authorization", "Bearer " + ownerAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Other owned workspace\"}"))
+                .andExpect(status().isOk()).andReturn();
+        long otherId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+        assertThat(otherId).isNotEqualTo(workspaceId);
+
+        mockMvc.perform(delete("/api/workspaces/{id}", otherId).header("X-API-Key", fullKey))
+                .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM workspace WHERE id = ?", Integer.class, otherId))
+                .isEqualTo(1);
+
+        mockMvc.perform(delete("/api/workspaces/{id}", otherId)
+                        .header("Authorization", "Bearer " + ownerAccessToken))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM workspace WHERE id = ?", Integer.class, otherId))
+                .isZero();
+    }
+
+    private String createReadApiKey() throws Exception {
+        CreateApiKeyRequest request = new CreateApiKeyRequest();
+        request.setName("Scope boundary regression");
+        request.setScope("READ");
+        MvcResult created = mockMvc.perform(post("/api/workspaces/{wid}/api-keys", workspaceId)
+                        .header("Authorization", "Bearer " + ownerAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk()).andReturn();
+        return objectMapper.readTree(created.getResponse().getContentAsString())
+                .path("data").path("fullKey").asText();
+    }
+
     private String uniqueUsername() {
         return "apikey_rbac_" + System.currentTimeMillis() + "_" + Thread.currentThread().threadId();
     }

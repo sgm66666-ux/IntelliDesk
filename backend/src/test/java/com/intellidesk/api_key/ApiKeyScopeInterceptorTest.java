@@ -1,11 +1,15 @@
 package com.intellidesk.api_key;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.intellidesk.common.TraceContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,6 +41,30 @@ class ApiKeyScopeInterceptorTest {
         SecurityContextHolder.clearContext();
         objectMapper = new ObjectMapper();
         interceptor = new ApiKeyScopeInterceptor(objectMapper);
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+        // Error responses create a trace outside the HTTP filter in these unit tests.
+        TraceContext.clear();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"absent", "empty", "id"})
+    void shouldDenyApiKeyWhenRouteHasNoWorkspaceScope(String variables) throws Exception {
+        setupApiKeyAuth();
+        Map<String, String> pathVariables = switch (variables) {
+            case "absent" -> null;
+            case "empty" -> Map.of();
+            default -> Map.of("id", "2");
+        };
+        when(request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE))
+                .thenReturn(pathVariables);
+        when(response.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
+
+        assertThat(interceptor.preHandle(request, response, null)).isFalse();
+        verify(response).setStatus(403);
     }
 
     // --- JWT: no-op ---

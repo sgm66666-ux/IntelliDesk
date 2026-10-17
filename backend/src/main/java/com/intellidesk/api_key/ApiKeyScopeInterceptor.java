@@ -61,7 +61,10 @@ public class ApiKeyScopeInterceptor implements HandlerInterceptor {
         Map<String, String> pathVariables = (Map<String, String>) request.getAttribute(
                 HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
         if (pathVariables == null || !pathVariables.containsKey("workspaceId")) {
-            return true;
+            // A workspace-bound key must never inherit the user's global account permissions.
+            log.warn("API Key scope denied: keyId={}, route has no workspace scope", apiKeyDetails.apiKeyId());
+            sendError(response, 403, com.intellidesk.common.ErrorCode.API_KEY_SCOPE_DENIED);
+            return false;
         }
 
         Long requestWorkspaceId = Long.parseLong(pathVariables.get("workspaceId"));
